@@ -644,7 +644,7 @@ async function requireMember(request, env) {
   if (!me.id) return { ok: false, error: 'invalid_token' };
 
   // 2) 查成员表（RLS: to authenticated using(true)，登录用户可读）
-  const mem = await fetch(sb.url + '/rest/v1/members?select=id,role&auth_user_id=eq.' + encodeURIComponent(me.id), {
+  const mem = await fetch(sb.url + '/rest/v1/members?select=member_id,role&auth_user_id=eq.' + encodeURIComponent(me.id), {
     headers: { apikey: sb.key, Authorization: 'Bearer ' + jwt },
     cf: { cacheTtl: 0 }
   });
