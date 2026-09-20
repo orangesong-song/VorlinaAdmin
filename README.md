@@ -40,11 +40,13 @@ vorlina-admin/
 ## 本地预览
 
 ```bash
-cd vorlina-admin && python3 -m http.server 8778 --bind 127.0.0.1
+cd vorlina-admin && python3 tools/serve-local.py 8778
 # 打开 http://127.0.0.1:8778/index.html
 ```
 
 > ⚠️ 必须走 HTTP（`file://` 下字体与相对路径会失效）。
+> ⚠️ **用 `tools/serve-local.py` 而不是裸 `http.server`** —— 后台会向同源的 `/content` 要仓库 JSON，
+> 裸静态服务器没有这个路由，页面会显示「内容没读到」（这不是 bug，是它的诚实表现）。
 
 ---
 
@@ -126,8 +128,22 @@ cd vorlina-admin && python3 -m http.server 8778 --bind 127.0.0.1
     本页的成员校验挡得住「进后台」，挡不住「拿 anon key + 自注册 JWT 直连 REST 读 inquiries」——
     **上线前必须在 Supabase 侧关掉注册**（见交接文档 §5 第 1 步）
 
+**✅ 2026-09-20 · P1 第 2 步：内容已接仓库真源**
+
+- **两条路、同一个形状**：生产走 Worker `/content`，本地走 `tools/serve-local.py` 的同形桩，
+  返回体与 GitHub Contents API 一致 ⇒ 前台只有 `CONTENT_BASE` 一个常量不同，**Worker 上线后代码不用动**。
+- 已接真数据：16 款产品 / 6 分类 / 5 篇文章 / 9 个栏目页 / 首页区块 / 16 份认证文件，
+  全部**从 JSON 现算**，演示数据已清零 —— `tools/verify-content.js` 用 21 项断言逐条盯着，
+  包括「必须出现真源里才有的字面量」（只验行数是不够的，演示数据也能凑出 16 行）。
+- ⚠️ **内容读不到必须报出来**：`srcTag()` 会标红写明读到了几份，总览列出读不到的清单。
+  用演示数据冒充真数据，是这个项目已经翻过三次的车。
+- ⚠️ **保存 ≠ 上线**：本地保存落 `.local-drafts/`（不碰官网工作区），生产保存落 `cms` 分支（不碰 `main`）。
+
 **未接入（下一步）**
-- 从仓库 JSON 读**真实内容**（现在列表里是演示数据，页面上有明确标注）
-- 发布：Worker + GitHub Actions（`check` → `version` → `build` → 提交）
+- 发布：Worker（`/content` 读写 + `/publish` 触发）+ GitHub Actions（`check` → `version` → `build` → 提交）
+- 正文 / 详情页的**编辑**（现阶段先把「真源里有什么」看清，改内容仍然是通过改 JSON）
 - 媒体库 → Cloudflare R2
 - GEO 运营（P2）
+
+**发布链路要真正动起来，需要你给两样东西**：① GitHub fine-grained token（只 `VorlinaSite` 的 contents + actions）
+② Cloudflare 部署通道（`wrangler login`）。这两样到位后，第 3 步可以从「本地桩」直接切到「Worker」。

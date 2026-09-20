@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+VORLINA Admin · 本地开发服务器
+════════════════════════════════════════════════════════════
+为什么要这个东西：后台的内容真源是**仓库里的 JSON**，而读写仓库需要 GitHub token。
+生产环境由 Worker 持 token 走 GitHub Contents API；但**开发时不该为了看一眼数据就去部署 Worker**。
+
+所以这里做一个「接口同形」的替身：
+    本服务器 GET /content 返回的东西，与 Worker GET /content 返回的**一模一样**
+    （GitHub Contents API 的 file 对象：content 是 base64，带 sha）。
+    ⇒ 前台只有 CONTENT_BASE 一个常量不同，Worker 上线后改一行即可，代码不用动。
+
+两条刻意的设计：
+1. **只认白名单里的文件** —— 不做任意路径访问（防目录穿越，也防手滑读到不该读的）。
+2. **写操作落到 overlay（.local-drafts/），绝不写官网工作区** ——
+   生产写的是 cms 分支（不碰 main），本地就把「分支」换成「覆盖层」。
+   效果一样：刷新能读到刚保存的东西；不同点只是它不会弄脏 vorlina-new 的工作区。
+
+用法：
+    python3 tools/serve-local.py [端口]     # 默认 8778
+    前台访问 http://127.0.0.1:8778/index.html
+"""
+import base64
+import hashlib
+import json
+import os
+import sys
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # vorlina-admin/
+SITE = os.path.normpath(os.path.join(HERE, '..', 'vorlina-new'))      # 官网真源
+OVERLAY = os.path.join(HERE, '.local-drafts')                         # 本地「cms 分支」
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8778
+
+# ── 白名单：后台允许读写的仓库内 JSON（相对官网根目录）──────────
+ALLOWED = [
+    'data/products.json',
+    'build/data/insights.json',
+    'build/data/imagery.json',
+    'build/data/contraindications.json',
+    'build/version.txt',
+    'content/home.json',
+    'content/common.json',
+] + ['content/pages/%s.json' % s for s in [
+    'applications', 'customization', 'factory', 'certifications',
+    'support', 'contact', 'terms', 'privacy', 'sitemap',
+]]
+
+
+def sha_of(data: bytes) -> str:
+    return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
+
+
+def read_file(rel: str):
+    """先查 overlay（本地已保存的草稿），再查真源。缺失返回 None。"""
+    for root in (OVERLAY, SITE):
+        p = os.path.join(root, rel)
+        if os.path.isfile(p):
+            with open(p, 'rb') as f:
+                return f.read()
+    return None
+
+
+def file_obj(rel: str, data: bytes):
+    return {
+        'path': rel,
+        'encoding': 'base64',
+        'size': len(data),
+        'sha': sha_of(data),
+        'content': base64.b64encode(data).decode('ascii'),
+    }
+
+
+class Handler(SimpleHTTPRequestHandler):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, directory=HERE, **kw)
+
+    def _cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS')
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors()
+        self.end_headers()
+
+    def _json(self, code, obj):
+        body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        u = urlparse(self.path)
+        if u.path == '/content':
+            rel = (parse_qs(u.query).get('path') or [''])[0]
+            if rel not in ALLOWED:
+                return self._json(403, {'message': '不在白名单里：' + (rel or '(空)')})
+            data = read_file(rel)
+            if data is None:
+                return self._json(404, {'message': '真源里没这个文件：' + rel})
+            return self._json(200, file_obj(rel, data))
+        if u.path == '/':
+            self.path = '/index.html'
+        return super().do_GET()
+
+    def do_PUT(self):
+        u = urlparse(self.path)
+        if u.path != '/content':
+            return self._json(404, {'message': 'no route'})
+        n = int(self.headers.get('Content-Length') or 0)
+        raw = self.rfile.read(n) if n else b'{}'
+        try:
+            req = json.loads(raw.decode('utf-8'))
+        except Exception as e:
+            return self._json(400, {'message': '请求体不是合法 JSON：' + str(e)})
+        rel = req.get('path') or ''
+        b64 = req.get('content') or ''
+        if rel not in ALLOWED:
+            return self._json(403, {'message': '不写入白名单外的文件：' + rel})
+        try:
+            data = base64.b64decode(b64)
+        except Exception as e:
+            return self._json(400, {'message': 'content 不是合法 base64：' + str(e)})
+        # 写前先验 JSON 语法 —— 把「坏 JSON 进了仓库」挡在本地这一步
+        if rel.endswith('.json'):
+            try:
+                json.loads(data.decode('utf-8'))
+            except Exception as e:
+                return self._json(400, {'message': 'JSON 语法错误，已拒绝保存：' + str(e)})
+        dest = os.path.join(OVERLAY, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, 'wb') as f:
+            f.write(data)
+        print('[save] %s (%d bytes) %s' % (rel, len(data), req.get('message') or ''))
+        return self._json(200, {'content': file_obj(rel, data), 'commit': {'message': req.get('message') or ''}})
+
+    def log_message(self, fmt, *args):
+        if '/content' in str(args[0]) if args else False:
+            super().log_message(fmt, *args)
+
+
+def main():
+    missing = [p for p in ALLOWED if not os.path.isfile(os.path.join(SITE, p))]
+    if missing:
+        print('⚠️ 官网侧缺失（后台对应模块会显示「读不到」）：')
+        for m in missing:
+            print('   -', m)
+    print('本地内容桩已就绪：http://127.0.0.1:%d/index.html' % PORT)
+    print('  真源   %s' % SITE)
+    print('  overlay %s （保存落这里，官网工作区不会被碰）' % OVERLAY)
+    ThreadingHTTPServer(('127.0.0.1', PORT), Handler).serve_forever()
+
+
+if __name__ == '__main__':
+    main()
