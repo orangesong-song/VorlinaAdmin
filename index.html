@@ -253,8 +253,8 @@ const NAV = [
 /* ── 内容接入层（P1 第 2 步 · 2026-09-20）──────────────────────────
    内容真源 = 仓库里的 JSON。两条路的返回**形状完全一致**（GitHub Contents API 的 file 对象），
    所以切换只是 CONTENT_BASE 一个常量：
-       生产  https://<worker>.workers.dev    ← 由 ?cb=<地址> 或 localStorage 指定
-       本地  ''（同源）= tools/serve-local.py 的同形桩
+       生产  https://notify.vorlina.net        ← Worker 自定义域（*.workers.dev 在大陆被墙，必走自定义域）
+       本地  ''（同源）= tools/serve-local.py 的同形桩；可用 ?cb=<地址> 或 localStorage.va_content_base 覆盖
    ! GitHub token 只存在于 Worker Secret —— CONTENT_BASE 里存的只是 Worker 的**地址**，不是凭据。
    ! 「保存」不等于「上线」：本地保存落 .local-drafts/（不碰官网工作区），
       生产保存落 cms 分支（不碰 main）。两条路语义一致：改完还要人工确认发布。
@@ -264,7 +264,8 @@ const NAV = [
 const CONTENT_BASE = (function(){
   const q = new URLSearchParams(location.search).get('cb');
   if (q) return q.replace(/\/+$/, '');
-  try { return localStorage.getItem('va_content_base') || '' } catch(e){ return '' }
+  try { const ls = localStorage.getItem('va_content_base'); if (ls) return ls; } catch(e){}
+  return 'https://notify.vorlina.net';   // 生产默认：Worker 自定义域（*.workers.dev 在大陆被墙）
 })();
 const PAGE_SLUGS = ['applications','customization','factory','certifications',
                     'support','contact','terms','privacy','sitemap'];
