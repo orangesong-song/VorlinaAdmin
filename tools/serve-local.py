@@ -53,6 +53,14 @@ def sha_of(data: bytes) -> str:
     return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
 
 
+def read_file_from(root: str, rel: str):
+    p = os.path.join(root, rel)
+    if os.path.isfile(p):
+        with open(p, 'rb') as f:
+            return f.read()
+    return None
+
+
 def read_file(rel: str):
     """先查 overlay（本地已保存的草稿），再查真源。缺失返回 None。"""
     for root in (OVERLAY, SITE):
@@ -80,7 +88,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Headers', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET,PUT,POST,OPTIONS')
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -106,9 +114,39 @@ class Handler(SimpleHTTPRequestHandler):
             if data is None:
                 return self._json(404, {'message': '真源里没这个文件：' + rel})
             return self._json(200, file_obj(rel, data))
+        if u.path == '/commits':
+            return self.do_GET_commits()
         if u.path == '/':
             self.path = '/index.html'
         return super().do_GET()
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        if u.path != '/changes':
+            return self._json(404, {'message': 'no route'})
+        n = int(self.headers.get('Content-Length') or 0)
+        raw = self.rfile.read(n) if n else b'{}'
+        try:
+            req = json.loads(raw.decode('utf-8'))
+        except Exception as e:
+            return self._json(400, {'message': 'bad json: ' + str(e)})
+        files = []
+        for rel in (req.get('paths') or []):
+            if rel not in ALLOWED:
+                continue
+            main = read_file_from(SITE, rel)
+            cms = read_file(rel)          # 先 overlay 后真源 = 本地的「cms 分支」
+            mo = {'sha': sha_of(main), 'size': len(main)} if main is not None else None
+            co = {'sha': sha_of(cms), 'size': len(cms)} if cms is not None else None
+            files.append({'path': rel, 'main': mo, 'cms': co,
+                          'changed': (mo is None) != (co is None) or (mo and co and mo['sha'] != co['sha'])})
+        return self._json(200, {'ok': True, 'files': files})
+
+    def do_GET_commits(self):
+        # 本地桩：没有提交历史可读，返回一条合成记录，形状与 Worker 一致
+        return self._json(200, {'ok': True, 'commits': [
+            {'sha': 'local000', 'date': '', 'message': '本地开发桩（无提交历史）', 'author': 'serve-local'}
+        ]})
 
     def do_PUT(self):
         u = urlparse(self.path)
