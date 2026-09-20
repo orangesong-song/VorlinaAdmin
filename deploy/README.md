@@ -35,17 +35,27 @@
    - 或加一条校验 step：提交者非 `github-actions[bot]` 时 `exit 1`。
 3. **cms 分支预览**：CF Pages 对 cms 分支自动出 `cms.vorlinasite.pages.dev`（后台内嵌 iframe 预览），无需额外 workflow。
 
-## 四、闸门映射（部署前确认）
+## 四、闸门映射（已坐实，不是占位）
 
-闸门 1 `build.py check` 已验证存在（全站 39 页 × 4 公共段字节级 + 标签配平）。
-闸门 2–5 的子命令名需对照 `build.py` 实际支持确认；若没有，按下方补脚本（均现成可写）：
+⚠️ **关键事实**：`build.py` 只暴露 4 个子命令（`build` / `check` / `sync` / `version`），
+**没有** `linkcheck` / `cjk` / `slugcheck` / `leak`。所以闸门 2–5 由独立脚本
+`VorlinaSite 仓库的 build/guards.py` 提供（单参数子命令，非零退出即阻断 Actions 提交）。
 
-| 闸门 | 判据 | 若 build.py 无该子命令 |
-|---|---|---|
-| 2 断链 | 站内链接 0 死链 | `python -c "扫 preview/*.html 的 href，HEAD 探 200"` |
-| 3 CJK | 渲染可见 CJK = 0（`pvbar` 除外） | `grep -rlP '[\x{4e00}-\x{9fff}]' preview/` 排除白名单 |
-| 4 slug | `catalog-data.js` 的 slug 与 `slugify(nameEn)` 16/16 一致 | 比对脚本 |
-| 5 泄漏 | `{{V}}` / `{{P}}` 0 处 | `grep -rl '{{V}}\|{{P}}' preview/` |
+| 闸门 | 判据 | Actions 里跑的命令 | 现状 |
+|---|---|---|---|
+| 1 漂移 | 全站 39 页 × 4 公共段字节级 + 标签配平 | `python build/build.py check` | ✅ 已验证 |
+| 2 断链 | 站内链接 0 死链（外链/mailto/tel/#锚点/`/cdn-cgi/` 跳过） | `python build/guards.py linkcheck` | ✅ 现预览 40 HTML 全过 |
+| 3 CJK | 渲染可见 CJK = 0（注释/script/style/`pvbar` 除外） | `python build/guards.py cjk` | ✅ 现预览可见 CJK = 0 |
+| 4 slug | `catalog-data.js` 的 slug 与 `slugify(nameEn)` 16/16 + 落地页存在 | `python build/guards.py slug` | ✅ 16/16 |
+| 5 泄漏 | `{{V}}` / `{{P}}` 0 处 | `python build/guards.py leak` | ✅ 0 |
+
+⚠️ **部署前必须确认 `build/guards.py` 已随本次发布提交进 VorlinaSite 仓库** ——
+publish.yml 在 Actions 里 `checkout` 的是 VorlinaSite，`guards.py` 不在仓库里 Actions 会直接报「找不到文件」而失败。
+（它在 `vorlina-new/build/guards.py`，与 `build.py` 同目录。）
+
+ℹ **非阻塞发现**：现预览的 HTML 注释里含 8852 个中文字（不渲染，但会随站发到客户端、
+暴露内部笔记如"首页 head 是本文件手写的"）。闸门 3 已正确把它排除在判据外，不影响上线；
+但建议后续清理注释（可加一个 `gate6 · 注释无 CJK` 当卫生项，目前未做）。
 
 ## 五、前台切换（代码一行不用改）
 

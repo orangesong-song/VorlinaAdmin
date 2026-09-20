@@ -53,23 +53,24 @@ jobs:
         run: python build/build.py build
 
       # ── 五项构建闸门（全过才提交；任一失败即停）────────────
-      # 闸门 1：公共组件字节级无漂移（已知存在：build.py check）
+      # 闸门 1：公共组件字节级无漂移（build.py check，覆盖全站 39 页 × 4 段 + 标签配平）
       - name: "gate1 · drift check"
         run: python build/build.py check
 
-      # 闸门 2–5：以下命令需部署前确认 build.py 是否支持；
-      # 不支持则补独立脚本（见 deploy/README.md「闸门映射」）。
+      # 闸门 2–5：build.py 本身只暴露 build/check/sync/version 四个子命令，
+      # 这四项检查由独立守卫脚本 build/guards.py 提供（已对真实 preview/ 验证全过）。
+      # ⚠️ 脚本必须随本次发布一起提交进 VorlinaSite，否则 Actions 找不到它。
       - name: "gate2 · link check (0 断链)"
-        run: python build/build.py linkcheck
+        run: python build/guards.py linkcheck
 
-      - name: "gate3 · CJK scan (0 可见 CJK)"
-        run: python build/build.py cjk
+      - name: "gate3 · CJK scan (0 渲染可见 CJK)"
+        run: python build/guards.py cjk
 
       - name: "gate4 · slug consistency (16/16)"
-        run: python build/build.py slugcheck
+        run: python build/guards.py slug
 
       - name: "gate5 · placeholder leak (0 {{V}}/{{P}})"
-        run: python build/build.py leak
+        run: python build/guards.py leak
 
       # ── 提交 main（触发 CF Pages 生产部署）─────────────────
       - name: commit to main
