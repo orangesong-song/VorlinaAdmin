@@ -1,0 +1,30 @@
+/* ==========================================================================
+   VORLINA · 设计令牌（后台）—— 自动生成，请勿手改
+   --------------------------------------------------------------------------
+   来源：../vorlina-new/preview/assets/css/main.css
+   生成：python3 tools/sync-theme.py
+   校验：python3 tools/sync-theme.py --check     ← 构建前跑，不一致会报错退出
+   ========================================================================== */
+
+@font-face{
+  font-family:'Cormorant Garamond';font-style:normal;font-weight:300 700;font-display:swap;
+  src:url('../fonts/cormorantgaramond-var.woff2') format('woff2-variations'),
+      url('../fonts/cormorantgaramond-var.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;
+  src:url('../fonts/inter-var.woff2') format('woff2-variations'),
+      url('../fonts/inter-var.woff2') format('woff2');
+}
+
+:root{
+  --ink:#15161A; --ink-2:#2A2C33; --graphite:#5B6470; --muted:#8A8F98;
+  --paper:#F7F5F1; --paper-2:#EFEBE4; --card:#FFFFFF; --line:#E2DCD2; --line-2:#D3CCC0;
+  --gold:#A8843C; --gold-lt:#C9A961; --gold-soft:#F5EEDF; --gold-ink:#7A5F22;
+  --ok:#3F7A5E; --warn:#A8442D;
+  --serif:'Cormorant Garamond',Georgia,'Songti SC','Times New Roman',serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;
+  --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --max:1440px; --gut:clamp(20px,2.6vw,48px);
+  --t-fast:.18s cubic-bezier(.2,.7,.3,1);
+}
