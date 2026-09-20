@@ -1,0 +1,79 @@
+# ============================================================
+# VORLINA · 发布工作流（草稿 v20260920）
+# 触发：后台点「发布」→ Worker POST /publish → workflow_dispatch
+# 职责：merge cms → main · 升版本串 · build · 五项构建闸门 · 提交 main
+# 注意：main 分支只接受本工作流的提交（分支保护见 deploy/README.md）
+# ============================================================
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      triggered_by:
+        description: "成员 uid（来自 Worker）"
+        required: false
+      action:
+        description: "publish | rollback"
+        required: false
+        default: "publish"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取 cms 分支
+        uses: actions/checkout@v4
+        with:
+          ref: cms
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: merge cms → main
+        run: |
+          git config user.name  "vorlina-admin"
+          git config user.email "admin@vorlina.net"
+          git fetch origin main
+          git checkout main
+          git merge --no-ff origin/cms -m "publish: merge cms -> main (by ${{ inputs.triggered_by }})"
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── 升版本串（YYYYMMDDx，跨日归 a；CDN 缓存键）──────────
+      - name: bump version
+        run: python build/build.py version
+
+      # ── 构建（输出目录 preview）─────────────────────────────
+      - name: build
+        run: python build/build.py build
+
+      # ── 五项构建闸门（全过才提交；任一失败即停）────────────
+      # 闸门 1：公共组件字节级无漂移（已知存在：build.py check）
+      - name: "gate1 · drift check"
+        run: python build/build.py check
+
+      # 闸门 2–5：以下命令需部署前确认 build.py 是否支持；
+      # 不支持则补独立脚本（见 deploy/README.md「闸门映射」）。
+      - name: "gate2 · link check (0 断链)"
+        run: python build/build.py linkcheck
+
+      - name: "gate3 · CJK scan (0 可见 CJK)"
+        run: python build/build.py cjk
+
+      - name: "gate4 · slug consistency (16/16)"
+        run: python build/build.py slugcheck
+
+      - name: "gate5 · placeholder leak (0 {{V}}/{{P}})"
+        run: python build/build.py leak
+
+      # ── 提交 main（触发 CF Pages 生产部署）─────────────────
+      - name: commit to main
+        run: |
+          git add -A
+          git commit -m "release: $(cat build/version.txt)" || echo "no changes"
+          git push origin main
