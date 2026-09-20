@@ -3,14 +3,45 @@
 > 状态：**代码已写好，未部署。** 卡在两把钥匙 —— ① GitHub fine-grained token ② Cloudflare 部署通道。
 > 钥匙到位后按本 runbook 操作，代码无需重写（前台 `CONTENT_BASE` 一个常量切换即可）。
 
-## 一、你要准备的两样东西
+## 一、你要准备的两样东西（详细点选路径）
 
-| 钥匙 | 怎么拿 | 用途 |
-|---|---|---|
-| GitHub fine-grained PAT | GitHub → Settings → Developer settings → PAT → Fine-grained，只选仓库 `orangesong-song/VorlinaSite`，权限 `Contents:write` + `Actions:write` | 存进 Worker Secret `GITHUB_TOKEN` |
-| Cloudflare 部署通道 | 现有 Worker 在 `syannsong.workers.dev`（Dashboard 建的，本机无 wrangler.toml）。继续走 **Dashboard 粘贴**最稳；或 `wrangler login` 后 `wrangler deploy` | 把扩写后的 Worker 上线 |
+### ① GitHub fine-grained PAT（用于 Worker 持 token 读写仓库 / 触发 Actions）
 
-⚠️ **新增 Secret 不冲突 Supabase**：`GITHUB_TOKEN` 是 GitHub 的，Supabase 的 key 是另一套。两个互不影响。
+1. 登录 GitHub → 右上角头像 → **Settings** → 左下 **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**。
+2. Token name：`vorlina-admin-publish`（能认出即可）。
+3. Expiration：建议 **90 days**（别选 No expiration，不安全；到期前我提醒你轮换）。
+4. **Resource owner**：选 **`orangesong-song`**（必须选对 owner，否则仓库列表里看不到 VorlinaSite）。
+5. **Repository access**：选 **Only select repositories** → 搜并勾选 **`VorlinaSite`**（只这一个，**绝不选 All repositories**）。
+6. **Repository permissions**（其余全部保持 No access）：
+   - **Contents** → Read and write（Worker 要读 JSON + 提交 cms 分支）
+   - **Actions** → Read and write（Worker 要 `workflow_dispatch` 触发发布）
+   - ⚠️ 不要给 Administration / Pull requests / Workflows 等无关权限（最小权限）。
+7. **Generate token** → **立刻复制**（只显示一次）→ 交给我把存进 Worker Secret `GITHUB_TOKEN`。
+
+### ② Cloudflare 部署通道（把扩写后的 Worker 上线）
+
+现有 Worker 在 `syannsong.workers.dev`（脚本名 `vorlina-inquiry-notify`，当初 Dashboard 建的，本机无 `wrangler.toml`）。两种选法：
+
+**A. Dashboard 粘贴（推荐，最稳，不用装东西）**
+1. 登录 dash.cloudflare.com → 左侧 **Workers & Pages** → 选 `vorlina-inquiry-notify`。
+2. **Edit code** → 把本地扩写后的完整 `worker.js` 粘贴进去（替换旧版；路由在顶部）。
+3. **Settings → Variables** → 加 Secret/Env（值见第二节）：
+   `GITHUB_TOKEN`（①拿的 PAT）· `GH_OWNER`·`GH_REPO`·`GH_CMS_BRANCH`·`GH_MAIN_BRANCH`·`GH_PUBLISH_WORKFLOW`。
+4. **Deploy / Save**。
+
+**B. wrangler login（本机有 node 时）**
+1. 终端：`npx wrangler login`（浏览器 OAuth 把本机绑到 CF 账号）。
+2. 建 `wrangler.toml`：`name = "vorlina-inquiry-notify"` + `account_id` + `compatibility_date`。
+3. `npx wrangler deploy` → ⚠️ **整体替换脚本**，必须基于本地真源副本（`vorlina-new/data/inquiry-worker/worker.js` + 扩写路由），部署后验旧路由 `/enquiry`、`/notify` 仍工作。
+
+⚠️ **不冲突 Supabase**：`GITHUB_TOKEN` 是 GitHub 的、Supabase 的 key 是另一套，Worker 里各走各的请求，互不影响。
+
+### ③ 后台站点本身也要建一个 CF Pages 项目（容易漏）
+
+Worker 只是"内容读写 + 发布"那一层的钥匙；**后台界面 `vorlina-admin/` 自己也要部署**到一个独立的 CF Pages 项目 `vorlina-admin.pages.dev`（不能放进 VorlinaSite 的 `preview/`）：
+1. CF → **Workers & Pages** → **Create** → **Pages** → 连 GitHub 仓库 `vorlina-admin`（这是另一个仓库，不是 VorlinaSite）。
+2. Build command：**留空**；Output directory：**`/`（根目录）**（后台是静态单页，无构建）。
+3. 部署后 `vorlina-admin.pages.dev` 即后台地址。
 
 ## 二、Worker 扩写（worker-content-publish.js）
 
