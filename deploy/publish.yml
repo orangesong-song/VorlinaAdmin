@@ -72,6 +72,12 @@ jobs:
       - name: "gate5 · placeholder leak (0 {{V}}/{{P}})"
         run: python build/guards.py leak
 
+      # 闸门 6（卫生项）：HTML 注释无 CJK —— 注释会随站发到客户端，暴露内部开发笔记。
+      # ⚠️ 注释真源在 build/partials / build/templates / build.py 内联模板；只改真源，
+      #    改 preview/ 会制造漂移（gate1 的字节级比对会拦）。
+      - name: "gate6 · HTML comments no CJK"
+        run: python build/guards.py comments
+
       # ── 提交 main（触发 CF Pages 生产部署）─────────────────
       - name: commit to main
         run: |

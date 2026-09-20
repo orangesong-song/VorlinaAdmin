@@ -24,7 +24,9 @@
 
 **A. Dashboard 粘贴（推荐，最稳，不用装东西）**
 1. 登录 dash.cloudflare.com → 左侧 **Workers & Pages** → 选 `vorlina-inquiry-notify`。
-2. **Edit code** → 把本地扩写后的完整 `worker.js` 粘贴进去（替换旧版；路由在顶部）。
+2. **Edit code** → 全选删掉旧代码 → **把 `deploy/worker.merged.js` 的全部内容原样粘贴进去** → Save。
+   - ⚠️ 粘贴的是 **`worker.merged.js`**（已把扩写路由并入原 worker.js 的完整成品，754 行），
+     **不是** `worker-content-publish.js`（那只是供审阅的扩写源码，直接贴会缺旧询盘逻辑的上下文且带注释块）。
 3. **Settings → Variables** → 加 Secret/Env（值见第二节）：
    `GITHUB_TOKEN`（①拿的 PAT）· `GH_OWNER`·`GH_REPO`·`GH_CMS_BRANCH`·`GH_MAIN_BRANCH`·`GH_PUBLISH_WORKFLOW`。
 4. **Deploy / Save**。
@@ -47,15 +49,22 @@ Worker 只是"内容读写 + 发布"那一层的钥匙；**后台界面 `vorlina
 
 现有 Worker 在 `syannsong.workers.dev`（脚本名 `vorlina-inquiry-notify`）。扩写 = 在同账号同脚本上**加路由**，不新建第二个。
 
-1. 打开 `vorlina-new/data/inquiry-worker/worker.js`（本地真源副本，583 行）。
-2. 把第 74–104 行的 `export default { async fetch ... }` 整段替换为 `worker-content-publish.js` 顶部【ROUTER 替换块】。
-3. 把 `worker-content-publish.js` 其余内容追加到文件末尾。
-4. 在 CF Dashboard（或 wrangler.toml）补 env：
-   - `GITHUB_TOKEN`（上面拿的 PAT）
-   - `GH_OWNER=orangesong-song` · `GH_REPO=VorlinaSite` · `GH_CMS_BRANCH=cms` · `GH_MAIN_BRANCH=main` · `GH_PUBLISH_WORKFLOW=publish.yml`
-5. 部署。
-6. **必验（回归！）**：`/enquiry` 探针仍 200 · `/notify` 收信仍正常 · 新增 `/content` GET 返回仓库 JSON · `/publish` 触发后 Actions 跑通。
-   - ⚠️ `wrangler deploy` 会整体替换脚本 ⇒ 必须基于本地副本加路由，部署后验旧路由。
+**粘贴产物已合并好：`deploy/worker.merged.js`**（原 worker.js 583 行 + 扩写路由与 helper = 754 行）。
+它由脚本从 `worker.js` + `worker-content-publish.js` 自动合并，已过三道断言（无函数重名 · `export default` 唯一 · `/content` `/publish` `/enquiry` 路由齐全）+ `node --check`。
+**Dashboard 粘贴它、或 `wrangler deploy` 用它，二选一，不要再手工合并。**
+
+在 CF Dashboard **Settings → Variables** 配 **6 个变量**（1 个 Secret + 5 个普通 Text；缺一个功能就降级，其中只有 `GITHUB_TOKEN` 是硬必需，其余 5 个代码里有同值默认，但**显式配上**避免隐式行为）：
+
+| 变量名 | 类型 | Value（原样填） | 作用 |
+|---|---|---|---|
+| `GITHUB_TOKEN` | **Secret**（加密，选 Encrypt） | ①步骤拿的 fine-grained PAT（`github_pat_…` 开头） | 读/写仓库 JSON、触发 Actions |
+| `GH_OWNER` | Text | `orangesong-song` | 仓库属主 |
+| `GH_REPO` | Text | `VorlinaSite` | 仓库名 |
+| `GH_CMS_BRANCH` | Text | `cms` | 后台保存落的分支 |
+| `GH_MAIN_BRANCH` | Text | `main` | 发布目标分支 |
+| `GH_PUBLISH_WORKFLOW` | Text | `publish.yml` | 要触发的 workflow 文件名 |
+
+部署后 **必验（回归！）**：`GET /` 探针里 `content: true` · `/enquiry` 仍 200 · `/notify` 收信仍正常 · 带 `Authorization: Bearer <成员JWT>` 调 `/content?path=data/products.json` 返回 base64 · `/publish` 触发后 Actions 跑通。
 
 ## 三、GitHub Actions（publish.yml）
 
@@ -79,6 +88,11 @@ Worker 只是"内容读写 + 发布"那一层的钥匙；**后台界面 `vorlina
 | 3 CJK | 渲染可见 CJK = 0（注释/script/style/`pvbar` 除外） | `python build/guards.py cjk` | ✅ 现预览可见 CJK = 0 |
 | 4 slug | `catalog-data.js` 的 slug 与 `slugify(nameEn)` 16/16 + 落地页存在 | `python build/guards.py slug` | ✅ 16/16 |
 | 5 泄漏 | `{{V}}` / `{{P}}` 0 处 | `python build/guards.py leak` | ✅ 0 |
+| 6 注释卫生 | HTML 注释内 CJK = 0（条件注释除外） | `python build/guards.py comments` | ✅ 已清源（2026-09-20 全部译英，8852→0） |
+
+⚠️ 闸门 6 的教训（2026-09-20 实测）：注释真源在 `build/partials` / `build/templates` / `build.py` 内联模板，
+**且 `<!-- ============ Inquiry drawer ============ -->` 这条注释同时是 gate1 漂移守卫的 body-end 段锚点** ——
+改它必须 `build.py` 的 `ANCHORS` 与 partial 两侧同步改，否则全站报漂移。**不要在 preview/ 上清注释**（= 制造漂移）。
 
 ⚠️ **部署前必须确认 `build/guards.py` 已随本次发布提交进 VorlinaSite 仓库** ——
 publish.yml 在 Actions 里 `checkout` 的是 VorlinaSite，`guards.py` 不在仓库里 Actions 会直接报「找不到文件」而失败。

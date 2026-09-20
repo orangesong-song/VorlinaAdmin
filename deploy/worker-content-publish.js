@@ -2,9 +2,10 @@
  * ============================================================
  * VORLINA · 后台内容/发布路由（扩写模块 · 草稿 v20260920）
  * ============================================================
- * 本文件是「追加模块」—— 不是独立 Worker。部署时：
- *   ① 把下方【ROUTER 替换块】替换进现有 worker.js 第 74–104 行的 export default 块
- *   ② 把本文件全部内容追加到 worker.js 末尾（在最后一个 } 之后）
+ * ⚠️ 本文件是「扩写源码」，**不要直接粘贴部署**。部署时粘贴同目录的
+ *    `worker.merged.js`（已由构建脚本把本模块并入原 worker.js：替换路由块 + 追加 helper，
+ *    并通过「无函数重名 / export default 唯一 / 三路由齐全」断言 + node --check）。
+ *    本文件只用来审阅新增了什么（【ROUTER 替换块】在注释里，仅供阅读）。
  *
  * 复用现有 worker.js 里已定义的 helper：
  *   corsHeaders / json / isAllowedOrigin / supabaseEnv / safeEqual / allowRate
