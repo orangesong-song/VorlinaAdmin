@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>视觉规范验收 · VORLINA 后台</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="theme/img/logo-vorlina.png">
+<link rel="stylesheet" href="theme/css/tokens.css">
+<link rel="stylesheet" href="theme/css/admin.css">
+<style>
+  /* 仅本验收页使用的排版辅助 */
+  .sg-wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px}
+  .sg-sec{margin-top:44px;padding-top:20px;border-top:1px solid var(--line)}
+  .sg-sec>.num{margin-bottom:4px}
+  .sg-sec>h2{font-family:var(--serif);font-size:22px;font-weight:600;margin-bottom:6px}
+  .sg-sec>p{color:var(--graphite);font-size:13px;margin:0 0 18px;max-width:70ch}
+  .sg-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .sg-sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .sg-sw>div{background:var(--card);padding:10px 12px}
+  .sg-chip{height:34px;border:1px solid var(--line-2);margin-bottom:8px}
+  .sg-sw .nm{font-family:var(--mono);font-size:11px;color:var(--ink)}
+  .sg-sw .val{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .sg-sw .use{font-size:11.5px;color:var(--graphite);margin-top:4px}
+  .sg-note{background:var(--gold-soft);border-left:3px solid var(--gold);padding:11px 14px;font-size:13px;color:var(--gold-ink);margin:14px 0}
+  .sg-tagline{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div class="sg-wrap">
+
+  <span class="num">STYLEGUIDE · 视觉验收</span>
+  <h1 class="d1" style="font-size:30px">VORLINA 后台 · 视觉规范</h1>
+  <p class="lede" style="margin-top:10px">
+    这一页把后台会用到的全部视觉元素渲染出来，供你一眼过审美。
+    <strong>所有色值、字体都直接来自网站</strong>（<code class="mono">theme/css/tokens.css</code> 由 <code class="mono">tools/sync-theme.py</code> 从 <code class="mono">vorlina-new/preview/assets/css/main.css</code> 自动同步，构建时可比对）。
+  </p>
+  <div class="sg-note">
+    <b>三条设计纪律</b>
+    ① 全程直角 —— 与网站一致，<strong>没有一处圆角</strong>；② 卡片与表格<strong>不用阴影</strong>，一律发丝线；
+    ③ 衬线字体只出现在「页面主标题」和「登录页」，其余全部 Inter。
+  </div>
+
+  <!-- ─────────────── 色板 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">01 / COLOR</span>
+    <h2>色板（来自网站令牌，后台不新增任何色）</h2>
+    <p>浅色为基底，墨黑承担"反色区块"，金色只用于强调与可点元素。这样打开后台的第一眼就和网站同源。</p>
+    <div class="sg-sw">
+      <div><div class="sg-chip" style="background:#15161A"></div><div class="nm">--ink</div><div class="val">#15161A</div><div class="use">正文最重 / 侧栏 / 反色块</div></div>
+      <div><div class="sg-chip" style="background:#2A2C33"></div><div class="nm">--ink-2</div><div class="val">#2A2C33</div><div class="use">次级正文 / hover</div></div>
+      <div><div class="sg-chip" style="background:#5B6470"></div><div class="nm">--graphite</div><div class="val">#5B6470</div><div class="use">说明文字</div></div>
+      <div><div class="sg-chip" style="background:#8A8F98"></div><div class="nm">--muted</div><div class="val">#8A8F98</div><div class="use">表头 / 元信息</div></div>
+      <div><div class="sg-chip" style="background:#F7F5F1"></div><div class="nm">--paper</div><div class="val">#F7F5F1</div><div class="use">页面底色</div></div>
+      <div><div class="sg-chip" style="background:#EFEBE4"></div><div class="nm">--paper-2</div><div class="val">#EFEBE4</div><div class="use">次级底色 / 面板底</div></div>
+      <div><div class="sg-chip" style="background:#FFFFFF"></div><div class="nm">--card</div><div class="val">#FFFFFF</div><div class="use">卡片 / 输入框</div></div>
+      <div><div class="sg-chip" style="background:#E2DCD2"></div><div class="nm">--line</div><div class="val">#E2DCD2</div><div class="use">发丝线（最常用）</div></div>
+      <div><div class="sg-chip" style="background:#D3CCC0"></div><div class="nm">--line-2</div><div class="val">#D3CCC0</div><div class="use">强调描边</div></div>
+      <div><div class="sg-chip" style="background:#A8843C"></div><div class="nm">--gold</div><div class="val">#A8843C</div><div class="use">主按钮 / 编号标签</div></div>
+      <div><div class="sg-chip" style="background:#C9A961"></div><div class="nm">--gold-lt</div><div class="val">#C9A961</div><div class="use">下划线 / 描边金</div></div>
+      <div><div class="sg-chip" style="background:#F5EEDF"></div><div class="nm">--gold-soft</div><div class="val">#F5EEDF</div><div class="use">选中行 / 金色提示底</div></div>
+      <div><div class="sg-chip" style="background:#7A5F22"></div><div class="nm">--gold-ink</div><div class="val">#7A5F22</div><div class="use">金色底上的文字</div></div>
+      <div><div class="sg-chip" style="background:#3F7A5E"></div><div class="nm">--ok</div><div class="val">#3F7A5E</div><div class="use">已发布 / 闸门通过</div></div>
+      <div><div class="sg-chip" style="background:#A8442D"></div><div class="nm">--warn</div><div class="val">#A8442D</div><div class="use">危险 / 只读 / 闸门失败</div></div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 字体 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">02 / TYPE</span>
+    <h2>三套字体，各有分工</h2>
+    <p>衬线承担"气质"，Inter 承担"干活"，mono 承担"数据与标记"。后台**刻意把衬线限制在少数位置** —— 数据密集的界面里，衬线多了会难读。</p>
+
+    <div class="sg-tagline">衬线 · 只用于页面主标题与登录页</div>
+    <div class="d1">产品库</div>
+    <div class="d2" style="margin-top:8px">发布到生产环境</div>
+
+    <div class="sg-tagline" style="margin-top:22px">Inter · 正文、表格、表单、按钮</div>
+    <p class="lede" style="margin:0">VORLINA 官网文案的真源在仓库里，后台只负责编辑与发布 —— 不直接改 HTML。</p>
+    <p class="p" style="margin-top:8px">这是一段正文。表格里的公司名、备注、说明文字全部走 Inter。</p>
+
+    <div class="sg-tagline" style="margin-top:22px">mono · 编号标签、数据、时间、SKU</div>
+    <div class="sg-row">
+      <span class="num" style="margin:0">03 / CATEGORIES</span>
+      <span class="mono">VOR-WZ-LSM802</span>
+      <span class="mono dim">2026-09-19 14:22</span>
+      <span class="mono dim">+18 −2</span>
+    </div>
+  </section>
+
+  <!-- ─────────────── 按钮 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">04 / BUTTONS</span>
+    <h2>按钮（原样沿用网站样式）</h2>
+    <p>金色是主操作、墨黑是常规、描边是次操作。反色区（如发布面板头）用「反色描边」。</p>
+
+    <div class="sg-row">
+      <button class="btn gold">确认发布</button>
+      <button class="btn">保存草稿</button>
+      <button class="btn ghost">取消</button>
+      <button class="btn sm">小型操作</button>
+      <button class="btn sm ghost">查看</button>
+    </div>
+
+    <div class="sg-tagline" style="margin-top:22px">在墨黑底上（如面板头 / 侧栏）</div>
+    <div class="sg-row" style="background:var(--ink);padding:16px">
+      <button class="btn gold">确认发布</button>
+      <button class="btn on-ink">查看完整预览</button>
+      <button class="btn on-ink sm">历史</button>
+    </div>
+
+    <div class="sg-tagline" style="margin-top:22px">禁用态 —— 必须一眼看得出来（这条是踩过坑的）</div>
+    <div class="sg-row">
+      <button class="btn gold" disabled>确认发布（闸门未全绿）</button>
+      <button class="btn ghost" disabled>回滚（仅 boss）</button>
+    </div>
+    <div class="sg-note">曾经出现过"禁用按钮外观与可用时一模一样、点了没反应也不提示"的静默失败。所以禁用态现在是：灰底 + 55% 透明度 + <code class="mono">not-allowed</code> 光标，且 hover 不再变色。</div>
+  </section>
+
+  <!-- ─────────────── 表单 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">05 / FORM</span>
+    <h2>表单</h2>
+    <p>标签用 mono 全大写小字，输入框白底 + 发丝线，聚焦时边框变金色。</p>
+    <div class="split">
+      <div class="panel">
+        <div class="panel-h"><span class="ttl">编辑产品 · VOR-GY-02</span><span class="grow mono dim">英文文案</span></div>
+        <div class="panel-b">
+          <div class="row2">
+            <div class="field">
+              <label for="sg1">型号名称（英文）</label>
+              <input id="sg1" type="text" value="Hydra-Oxygen Facial Device with LED Mask">
+              <div class="hint">改这里会同步重算 URL 别名（slug）</div>
+            </div>
+            <div class="field">
+              <label for="sg2">SKU</label>
+              <input id="sg2" type="text" value="VOR-GY-02">
+              <div class="hint">只读字段，改不了</div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sg3">卡片描述（首页用）</label>
+            <textarea id="sg3" rows="3">Oxygen jet and hydra-oxygen devices, with or without a full-face LED mask.</textarea>
+          </div>
+          <div class="field err">
+            <label for="sg4">毛重（kg）</label>
+            <input id="sg4" type="text" value="abc">
+            <div class="msg">请填数字 —— 该字段会直接显示在网站上</div>
+          </div>
+          <label class="check"><input type="checkbox" checked><span>该型号可在首页分类卡中作为代表图</span></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><span class="ttl">登录</span></div>
+        <div class="panel-b">
+          <div class="field">
+            <label for="sg5">邮箱</label>
+            <input id="sg5" type="email" placeholder="you@vorlina.net">
+          </div>
+          <div class="field">
+            <label for="sg6">密码</label>
+            <input id="sg6" type="password" placeholder="••••••••">
+          </div>
+          <button class="btn gold wide">登录</button>
+          <p class="mono dim" style="font-size:11px;margin-top:12px">
+            账号由管理员添加 · 后台不提供注册入口
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 表格 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">06 / TABLE</span>
+    <h2>表格</h2>
+    <p>发丝线分隔、无斑马纹；SKU 与数字走 mono 保证列对齐；状态用色点 + 文字（不只靠颜色）。</p>
+    <div class="panel">
+      <div class="panel-h">
+        <span class="ttl">产品库</span>
+        <span class="grow mono dim">16 条</span>
+        <button class="btn sm ghost">筛选</button>
+        <button class="btn gold sm">新增型号</button>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr><th>SKU</th><th>名称</th><th>分类</th><th>状态</th><th>更新时间</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">VOR-DZ-TS01</td><td>CO2 Fractional Laser System</td><td class="dim">Laser &amp; Light</td><td><span class="dot ok">已发布</span></td><td class="k">09-19 14:22</td></tr>
+          <tr aria-selected="true"><td class="k">VOR-WZ-LSM802</td><td>Vertical Gold RF Microneedling</td><td class="dim">Microneedling</td><td><span class="dot draft">草稿</span></td><td class="k">09-19 11:07</td></tr>
+          <tr><td class="k">VOR-GY-02</td><td>Hydra-Oxygen Facial Device</td><td class="dim">Hydration</td><td><span class="dot ok">已发布</span></td><td class="k">09-18 20:41</td></tr>
+          <tr><td class="k">VOR-RZ-TS01</td><td>Laser Lipolysis 980/1470</td><td class="dim">Body Shaping</td><td><span class="dot idle">已下线</span></td><td class="k">09-17 09:33</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mono dim" style="font-size:11px;margin-top:10px">↑ 第二行是「选中」状态（金色底）；鼠标悬停任意行也是同样的底色。</p>
+  </section>
+
+  <!-- ─────────────── 提示条 / 徽章 / 指标卡 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">07 / FEEDBACK</span>
+    <h2>提示条 · 徽章 · 指标卡</h2>
+    <div class="notice gold"><b>发布前请确认</b>预览里的每一句文案都是你要发出去的版本。发布后线上会立即更新，且会记录在发布历史里。</div>
+    <div class="notice safe"><b>闸门全绿</b>公共段无漂移、标签配平、断链 0、可见中文 0、版本串已递增。</div>
+    <div class="notice"><b>回滚仅 boss</b>你当前角色是「运营」，无法回滚。如需撤回请联系管理员。</div>
+
+    <div class="sg-row" style="margin-top:16px">
+      <span class="tag">草稿</span>
+      <span class="tag">已发布</span>
+      <span class="tag ro">只读</span>
+      <span class="tag">待复核</span>
+    </div>
+
+    <div class="grid g4" style="margin-top:18px">
+      <div class="metric"><div class="k">产品</div><div class="v">16</div><div class="d">6 个分类</div></div>
+      <div class="metric"><div class="k">文章</div><div class="v">5</div><div class="d">全部已发布</div></div>
+      <div class="metric"><div class="k">待发布变更</div><div class="v">3</div><div class="d">草稿已存 2 分钟前</div></div>
+      <div class="metric"><div class="k">询盘</div><div class="v">47</div><div class="d">近 30 天</div></div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 发布面板 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">08 / RELEASE</span>
+    <h2>发布面板（后台唯一"网站上看不到"的界面）</h2>
+    <p>左边是变更清单，右边是五项硬门禁。注意「确认发布」现在是 <strong>禁用态</strong> —— 因为版本串那一项还没通过。</p>
+
+    <div class="release">
+      <div class="release-h">
+        <span class="num">RELEASE</span>
+        <div class="ttl">发布到生产环境</div>
+        <div class="meta">分支 cms · 预览已就绪 · 由 运营小林 发起</div>
+      </div>
+      <div class="release-b">
+        <div>
+          <span class="num">CHANGE SET</span>
+          <ul class="changes">
+            <li><span class="t"><span class="mono dim">PRODUCT</span><br>VOR-GY-02 · 产品描述改写 2 处</span><span class="stat">+2 −2</span></li>
+            <li><span class="t"><span class="mono dim">HOME · FAQ</span><br>第 9 条措辞更新 · JSON-LD 同步</span><span class="stat">+2 −2</span></li>
+            <li><span class="t"><span class="mono dim">DATA</span><br>分类卡新增 cardImage / cardAlt</span><span class="stat">+18</span></li>
+          </ul>
+          <div class="notice gold" style="margin-bottom:0"><b>影响范围</b>首页 + 1 个产品页 · 其余 37 页零变化</div>
+        </div>
+        <div>
+          <span class="num">GATES</span>
+          <ul class="gates">
+            <li><span class="dot ok"></span><span class="t">公共段无漂移</span><span class="m">39 页 × 4 段</span></li>
+            <li><span class="dot ok"></span><span class="t">标签配平正常</span><span class="m">开闭相等</span></li>
+            <li><span class="dot ok"></span><span class="t">站内断链为 0</span><span class="m">249 条链接</span></li>
+            <li><span class="dot ok"></span><span class="t">渲染可见中文为 0</span><span class="m">除预览条</span></li>
+            <li><span class="dot new"></span><span class="t">版本串将递增</span><span class="m">待确认</span></li>
+            <li><span class="dot ok"></span><span class="t">JSON-LD 可解析</span><span class="m">70 个块</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="release-f">
+        <span class="mono dim" style="font-size:11px">发布记录会写入审计日志（谁 · 何时 · 变更 · 版本串）</span>
+        <span class="grow"></span>
+        <button class="btn ghost">查看完整预览</button>
+        <button class="btn gold" disabled>确认发布</button>
+      </div>
+    </div>
+    <div class="sg-note">「确认发布」只有在六项全部通过后才会亮起。禁用时按钮是灰的，鼠标划过也不变色 —— 但旁边会说明是哪一项没过。</div>
+  </section>
+
+  <!-- ─────────────── 侧栏 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">09 / SIDEBAR</span>
+    <h2>侧栏（4 组 + 底部固定区）</h2>
+    <p>侧栏是"一眼认出是 VORLINA"的主要载体：墨黑底 + 衬线 wordmark + 金色 mono 组名 + 选中项用金色左边线。</p>
+
+    <div style="display:grid;grid-template-columns:208px minmax(0,1fr);border:1px solid var(--line);height:520px;overflow:hidden">
+      <nav class="rail" style="position:static;height:auto">
+        <div class="rail-brand">
+          <div class="wm">VORLINA</div>
+          <div class="sub">ADMIN CONSOLE</div>
+        </div>
+        <div class="rail-nav">
+          <button class="rail-item">总览</button>
+          <div class="rail-group">内容</div>
+          <button class="rail-item">产品与分类</button>
+          <button class="rail-item">文章<span class="badge">5</span></button>
+          <button class="rail-item">栏目页</button>
+          <button class="rail-item">首页</button>
+          <button class="rail-item">媒体库</button>
+          <button class="rail-item">认证文件</button>
+          <div class="rail-group">发布</div>
+          <button class="rail-item">变更清单<span class="badge">3</span></button>
+          <button class="rail-item">发布历史</button>
+          <div class="rail-group">运营</div>
+          <button class="rail-item" aria-current="page">询盘查看</button>
+          <button class="rail-item">GEO 运营</button>
+        </div>
+        <div class="rail-foot">
+          <button class="rail-item">设置与成员</button>
+          <button class="rail-item dim">退出登录</button>
+        </div>
+      </nav>
+      <div style="padding:24px;background:var(--paper);overflow:auto">
+        <span class="num">02 / INQUIRIES</span>
+        <h2 class="d1">询盘查看</h2>
+        <p class="mono" style="font-size:11px;color:var(--warn);margin:6px 0 0">只读 · 处理与跟单请到外贸作战中心</p>
+        <hr class="hr">
+        <div class="notice gold" style="margin-top:0"><b>这个页面为什么是只读的</b>买家状态（新 / 已联系 / 报价中 / 已成交）只在作战中心修改。两个地方都能改会互相覆盖。</div>
+        <div class="grid g2" style="margin-top:16px">
+          <div class="metric"><div class="k">近 30 天询盘</div><div class="v">47</div><div class="d">来自 18 个国家</div></div>
+          <div class="metric"><div class="k">待处理</div><div class="v">9</div><div class="d">状态为「新」</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── 自检 ─────────────── -->
+  <section class="sg-sec">
+    <span class="num">10 / SELF-CHECK</span>
+    <h2>两条可自动化的纪律</h2>
+    <div class="panel panel-b">
+      <p class="p" style="margin-top:0"><strong>① 无圆角</strong> —— 与网站一致，任何新增组件都不应出现 <code class="mono">border-radius</code>：</p>
+      <pre class="mono" style="background:var(--paper-2);border:1px solid var(--line);padding:12px;overflow:auto;font-size:12px">grep -rn 'border-radius' theme/css/ | grep -v 'border-radius:0'     # 应无输出</pre>
+      <p class="p"><strong>② 令牌不脱节</strong> —— 网站改了配色，后台会被报出来：</p>
+      <pre class="mono" style="background:var(--paper-2);border:1px solid var(--line);padding:12px;overflow:auto;font-size:12px">python3 tools/sync-theme.py --check     # 构建前跑；不一致退出码 1</pre>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

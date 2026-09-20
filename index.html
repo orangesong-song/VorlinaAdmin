@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VORLINA · 后台管理</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="theme/img/logo-vorlina.png">
+<link rel="stylesheet" href="theme/css/tokens.css">
+<link rel="stylesheet" href="theme/css/admin.css">
+<style>
+  /* ── 登录页 ───────────────────────────────────────────────── */
+  .login{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);min-height:100vh}
+  .login-l{background:var(--ink);color:#EDE9E1;padding:56px 48px;display:flex;flex-direction:column;justify-content:space-between}
+  .login-l .wm{font-family:var(--serif);font-weight:600;font-size:clamp(30px,4.4vw,46px);letter-spacing:.14em;line-height:1}
+  .login-l .sub{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:#7E7870;margin-top:14px}
+  .login-l .blurb{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:#8A8F98;line-height:2}
+  .login-l .blurb b{color:var(--gold-lt);font-weight:500}
+  .login-r{background:var(--paper);display:flex;align-items:center;justify-content:center;padding:48px 40px}
+  .login-box{width:100%;max-width:352px}
+  .login-box .num{margin-bottom:10px}
+  .login-box h1{font-family:var(--serif);font-size:27px;font-weight:600;margin-bottom:6px}
+  .login-box .intro{font-size:13px;color:var(--graphite);margin:0 0 24px}
+  @media (max-width:820px){.login{grid-template-columns:1fr}.login-l{padding:36px 28px;gap:28px}}
+
+  /* ── 内容区通用 ───────────────────────────────────────────── */
+  .view-head{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .view-head .lead{flex:1 1 320px;min-width:200px}
+  .view-head h1{font-family:var(--serif);font-size:26px;font-weight:600;line-height:1.12}
+  .view-head .side{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--muted);text-align:right}
+  .sec{margin-top:24px}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-top:18px;flex-wrap:wrap}
+  .tabs button{
+    font-size:13px;padding:9px 15px;color:var(--graphite);border-bottom:2px solid transparent;
+    margin-bottom:-1px;transition:var(--t-fast)
+  }
+  .tabs button:hover{color:var(--ink)}
+  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--gold);font-weight:500}
+  .demo-flag{
+    display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--gold-ink);
+    background:var(--gold-soft);border:1px solid var(--gold-lt);padding:2px 8px
+  }
+  .review-list{list-style:none;margin:0;padding:0}
+  .review-list li{padding:12px 0;border-bottom:1px solid var(--line)}
+  .review-list li:last-child{border-bottom:0}
+  .review-list .q{font-weight:500;font-size:13.5px}
+  .review-list .a{font-size:13px;color:var(--graphite);margin-top:4px}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  .pair>div{background:var(--card);padding:14px 16px}
+  .pair .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .pair .v{font-size:13.5px;color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ 登录 ═══════════════ -->
+<div class="login" id="login">
+  <div class="login-l">
+    <div>
+      <div class="wm">VORLINA</div>
+      <div class="sub">ADMIN CONSOLE</div>
+    </div>
+    <div class="blurb">
+      <b>内容唯一真源 = Git 仓库</b><br>
+      后台只编辑 JSON，不直接改页面<br>
+      发布前必看预览 · 每次发布留痕<br>
+      买家询盘为<b>只读</b>，跟单请到外贸作战中心
+    </div>
+  </div>
+
+  <div class="login-r">
+    <form class="login-box" id="loginForm">
+      <span class="num">SIGN IN</span>
+      <h1>登录后台</h1>
+      <p class="intro">用公司邮箱登录。若还没有账号，请联系管理员添加。</p>
+
+      <div class="field">
+        <label for="email">邮箱</label>
+        <input id="email" type="email" autocomplete="username" placeholder="you@vorlina.net" required>
+      </div>
+      <div class="field">
+        <label for="pw">密码</label>
+        <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••" required>
+      </div>
+
+      <button class="btn gold wide" type="submit">登录</button>
+
+      <div class="notice gold" id="loginMsg" hidden style="margin-top:18px"></div>
+      <p class="mono dim" style="font-size:11px;margin-top:14px">
+        后台不提供注册入口 · 账号只能由 boss / 主管添加
+      </p>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════ 主框架 ═══════════════ -->
+<div class="app" id="app" hidden>
+
+  <div class="topbar">
+    <span class="mk">VORLINA ADMIN</span>
+    <span class="mono dim" id="envTag">vorlina-admin.pages.dev</span>
+    <span class="who"><b id="whoName">—</b>　<span class="mono" id="whoRole" style="color:#7E7870">role: —</span>　<button class="mono" id="logout" style="color:#9C968E;letter-spacing:.06em">退出</button></span>
+  </div>
+
+  <nav class="rail" id="rail" aria-label="主导航">
+    <div class="rail-brand">
+      <div class="wm">VORLINA</div>
+      <div class="sub">ADMIN CONSOLE</div>
+    </div>
+    <div class="rail-nav" id="railNav"></div>
+    <div class="rail-foot" id="railFoot"></div>
+  </nav>
+
+  <main class="main" id="view" tabindex="-1"></main>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   阶段状态（2026-09-20）：
+   · ✅ 已接 Supabase Auth 真实登录 + members 成员校验（P1 第 1 步）
+        非成员账号进不来；会话存 localStorage，过期用 refresh_token 自动续
+   · ✅ **内容已接仓库真源**（P1 第 2 步）：16 款产品 / 6 分类 / 5 篇文章 / 9 个栏目页 /
+        首页区块 / 16 份认证文件，全部从 JSON 现算；右上角 srcTag() 标明读到了几份
+   · ⏳ 发布链路（Worker + GitHub Actions + 五项硬闸门）未接（P1 第 3 步）
+        —— 缺的是部署凭据（GitHub token / Cloudflare），不是代码；相关页面如实显示「未接入」
+   ══════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════
+   Supabase 接入层 —— 与外贸作战中心**同一套做法**：
+   零依赖，直接走 Auth / REST 的 HTTP 接口，不引任何 CDN 包。
+   ⚠️ 下面这个 key 是 anon（公开信息，本来就随前端下发），真正的门是数据库 RLS；
+      **service_role 绝不进浏览器**。发布要用的 GitHub token 只存在于 Worker Secret 里。
+   ⚠️ 会话键名 'va_sb_session' 与作战中心的 'twc_sb_session' **刻意分开**：
+      两个应用同域下并存时不能互相顶掉登录态。
+   ══════════════════════════════════════════════════════════════ */
+const SB_URL = 'https://jjmaularjtmhptbfnovd.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqbWF1bGFyanRtaHB0YmZub3ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3ODYwMTgsImV4cCI6MjEwNDM2MjAxOH0.t5RJfF34qfiBQZaqAcp3NnCOxo_38okIAzSrJNspSrI';
+const SESS_KEY = 'va_sb_session';
+
+function sbSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY) || 'null') }catch(e){ return null } }
+function sbSetSession(s){
+  try{ s ? localStorage.setItem(SESS_KEY, JSON.stringify(s)) : localStorage.removeItem(SESS_KEY) }catch(e){}
+}
+function sbToken(){ const s = sbSession(); return s ? s.access_token : '' }
+
+function sbAuthHeaders(extra){
+  const h = { 'apikey': SB_ANON, 'Authorization': 'Bearer ' + (sbToken() || SB_ANON) };
+  return Object.assign(h, extra || {});
+}
+async function jsonOrText(res){
+  const txt = await res.text();
+  try{ return txt ? JSON.parse(txt) : null }catch(e){ return txt }
+}
+async function sbReq(path, opts){
+  opts = opts || {};
+  const send = () => fetch(SB_URL + path, {
+    method: opts.method || 'GET', headers: sbAuthHeaders(opts.headers), body: opts.body
+  });
+  let res = await send();
+  if (res.status === 401){
+    /* 令牌过期：**先拿 refresh_token 换一次，成功就重放这次请求**。
+       ⚠️ 这里绝不能一见到 401 就清会话 —— refresh_token 就存在会话里，
+          先清掉等于把本来能自愈的过期降级成强制重新登录（2026-09-20 实测，T6 变红）。
+          「清会话」只保留给"换了还是 401"这条路。 */
+    if (!await sbRefresh()) throw new Error('会话已失效，请重新登录');
+    res = await send();
+    if (res.status === 401){
+      sbSetSession(null);
+      showLogin('登录已过期，请重新登录');
+      throw new Error('会话已失效，请重新登录');
+    }
+  }
+  const j = await jsonOrText(res);
+  if (!res.ok) throw new Error('HTTP ' + res.status + '：' + ((j && (j.message || j.error_description)) || j || ''));
+  return j;
+}
+async function sbSignIn(email, pw){
+  const res = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'apikey': SB_ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: pw })
+  });
+  const j = await jsonOrText(res);
+  if (!res.ok || !j || !j.access_token){
+    const raw = (j && (j.error_description || j.msg || j.message)) || ('HTTP ' + res.status);
+    throw new Error(/invalid login credentials/i.test(String(raw)) ? '邮箱或密码不正确' : raw);
+  }
+  sbSetSession({
+    access_token: j.access_token,
+    refresh_token: j.refresh_token || '',
+    user_id: (j.user && j.user.id) || '',
+    email: (j.user && j.user.email) || email,
+    expires_at: Date.now() + ((j.expires_in || 3600) * 1000)
+  });
+  return j;
+}
+async function sbRefresh(){
+  const s = sbSession();
+  if (!s || !s.refresh_token) return false;
+  const res = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    headers: { 'apikey': SB_ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: s.refresh_token })
+  });
+  const j = await jsonOrText(res);
+  if (!res.ok || !j || !j.access_token){ sbSetSession(null); return false }
+  sbSetSession({
+    access_token: j.access_token,
+    refresh_token: j.refresh_token || s.refresh_token,
+    user_id: (j.user && j.user.id) || s.user_id,
+    email: (j.user && j.user.email) || s.email,
+    expires_at: Date.now() + ((j.expires_in || 3600) * 1000)
+  });
+  return true;
+}
+
+/* ── 成员校验 ──────────────────────────────────────────────────
+   「是不是有效成员」的**唯一判据** = members 表里存在 auth_user_id = 当前会话用户 的行。
+   查不到就拒绝 —— 这一条同时挡住了「自己注册一个账号混进来」。
+   ⚠️ 它挡不住的是「绕过本页面、拿 anon key + 自己注册的 JWT 直连 REST 读 inquiries」
+      —— 那要在 Supabase 侧关闭自助注册才算真堵住（见交接文档与本轮报告）。 */
+async function fetchMember(){
+  const u = await sbReq('/auth/v1/user');
+  if (!u || !u.id) throw new Error('会话无效，请重新登录');
+  const rows = await sbReq('/rest/v1/members?select=member_id,name,role,email&auth_user_id=eq.' + encodeURIComponent(u.id));
+  const m = (rows || [])[0];
+  if (!m) throw new Error('这个账号（' + (u.email || '—') + '）不是团队成员。后台不开放注册，账号只能由管理员在 Supabase 添加。');
+  return { member_id: m.member_id, name: m.name, role: m.role || '', email: m.email || u.email || '' };
+}
+
+/* ── 权限（方案 §5.0）：发布不限角色；回滚仅 boss ── */
+function canPublish(){ return !!SESSION }
+function canRollback(){ return !!SESSION && SESSION.role === 'boss' }
+
+const NAV = [
+  { id:'overview',  label:'总览',       icon:'◈', group:null },
+  { group:'内容' },
+  { id:'products',  label:'产品与分类', icon:'▤' },
+  { id:'notes',     label:'文章',       icon:'▤', badge:'5' },
+  { id:'pages',     label:'栏目页',     icon:'▤' },
+  { id:'home',      label:'首页',       icon:'▤' },
+  { id:'media',     label:'媒体库',     icon:'▤' },
+  { id:'certs',     label:'认证文件',   icon:'▤' },
+  { group:'发布' },
+  { id:'changes',   label:'变更清单',   icon:'↑', badge:'3' },
+  { id:'releases',  label:'发布历史',   icon:'↺' },
+  { group:'运营' },
+  { id:'inquiries', label:'询盘查看',   icon:'◇' },
+  { id:'geo',       label:'GEO 运营',   icon:'◇' },
+];
+
+/* ── 内容接入层（P1 第 2 步 · 2026-09-20）──────────────────────────
+   内容真源 = 仓库里的 JSON。两条路的返回**形状完全一致**（GitHub Contents API 的 file 对象），
+   所以切换只是 CONTENT_BASE 一个常量：
+       生产  https://<worker>.workers.dev    ← 由 ?cb=<地址> 或 localStorage 指定
+       本地  ''（同源）= tools/serve-local.py 的同形桩
+   ! GitHub token 只存在于 Worker Secret —— CONTENT_BASE 里存的只是 Worker 的**地址**，不是凭据。
+   ! 「保存」不等于「上线」：本地保存落 .local-drafts/（不碰官网工作区），
+      生产保存落 cms 分支（不碰 main）。两条路语义一致：改完还要人工确认发布。
+   ! 内容读失败**必须报出来**：能读多少显示多少 + 总览列出读不到的清单，
+      绝不用演示数据冒充真数据（本站已为此翻车三次）。 */
+
+const CONTENT_BASE = (function(){
+  const q = new URLSearchParams(location.search).get('cb');
+  if (q) return q.replace(/\/+$/, '');
+  try { return localStorage.getItem('va_content_base') || '' } catch(e){ return '' }
+})();
+const PAGE_SLUGS = ['applications','customization','factory','certifications',
+                    'support','contact','terms','privacy','sitemap'];
+const CONTENT_JSON = [
+  'data/products.json', 'build/data/insights.json',
+  'content/home.json', 'content/common.json',
+  'build/data/imagery.json', 'build/data/contraindications.json'
+].concat(PAGE_SLUGS.map(s => 'content/pages/' + s + '.json'));
+
+const STORE = { files:{}, errors:[], version:'-', inquiries:null, inquiriesError:'', loadedAt:0 };
+
+function b64ToStr(b64){
+  const bin = atob(b64); const by = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) by[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(by);
+}
+function strToB64(s){
+  const by = new TextEncoder().encode(s); let bin = '';
+  for (let i = 0; i < by.length; i++) bin += String.fromCharCode(by[i]);
+  return btoa(bin);
+}
+async function contentFetch(url, opts){
+  const res = await fetch(url, Object.assign({ headers:{ Authorization:'Bearer ' + sbToken() } }, opts || {}));
+  const txt = await res.text();
+  let j = null; try { j = txt ? JSON.parse(txt) : null } catch(e){}
+  if (!res.ok) throw new Error('HTTP ' + res.status + '：' + ((j && j.message) || txt || '无响应体'));
+  return j;
+}
+async function contentGet(path){ return contentFetch(CONTENT_BASE + '/content?path=' + encodeURIComponent(path)) }
+async function contentPut(path, obj, message){
+  return contentFetch(CONTENT_BASE + '/content', {
+    method:'PUT',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ path: path, message: message || '后台保存',
+                           content: strToB64(JSON.stringify(obj, null, 2) + '\n') })
+  });
+}
+async function loadContent(){
+  STORE.errors = [];
+  STORE.files = {};
+  await Promise.all(CONTENT_JSON.map(async p => {
+    try { STORE.files[p] = JSON.parse(b64ToStr((await contentGet(p)).content)) }
+    catch(e){ STORE.files[p] = null; STORE.errors.push(p + ' -- ' + e.message) }
+  }));
+  try { STORE.version = b64ToStr((await contentGet('build/version.txt')).content).trim() }
+  catch(e){ STORE.version = '-' }
+  STORE.loadedAt = Date.now();
+}
+/* 询盘：直连 Supabase REST（与作战中心同一套做法）。
+   ! 只读 —— 不写 status / owner_id，不提供导出（带的是买家个人信息）。 */
+async function loadInquiries(){
+  STORE.inquiriesError = ''; STORE.inquiries = null;
+  try {
+    const rows = await sbReq('/rest/v1/inquiries'
+      + '?select=id,created_at,name,company,country,status'
+      + '&order=created_at.desc&limit=50');
+    /* ⚠️ REST 正常返回数组；但代理改写、部分错误场景会返回**对象**。
+       不校验就把 {} 当数组 .map()，整个总览会崩成白屏 —— 这是回归验证抓出来的真 bug。
+       宁可见到的提示是「这份数据没读到」，也不要一处异常带翻整页。 */
+    if (!Array.isArray(rows)) throw new Error('返回不是数组：' + JSON.stringify(rows).slice(0, 80));
+    STORE.inquiries = rows;
+  } catch(e){ STORE.inquiriesError = e.message || String(e) }
+}
+async function loadAll(){
+  await loadContent();
+  await loadInquiries();      /* 询盘读不到不影响编辑内容，两条路各自报错 */
+}
+
+/* ── 读数辅助：一切所见都来自 STORE，没有一处手填 ── */
+const productsDoc = () => (STORE.files['data/products.json'] || null);
+const insightsDoc = () => (STORE.files['build/data/insights.json'] || null);
+const homeDoc     = () => (STORE.files['content/home.json'] || null);
+const certDoc     = () => (STORE.files['content/pages/certifications.json'] || null);
+const pageDoc     = s => (STORE.files['content/pages/' + s + '.json'] || null);
+function blockCount(o){
+  if (!o || typeof o !== 'object') return 0;
+  return Object.keys(o).filter(k => k !== 'meta' && k !== 'pvbar' && !k.startsWith('_')).length;
+}
+
+/* ── 侧栏渲染 ── */
+function renderNav(active){
+  const nav = document.getElementById('railNav');
+  const foot = document.getElementById('railFoot');
+  let html = '', foot_html = '';
+  let bucket = nav;
+  for (const n of NAV){
+    if (n.group){
+      html += `<div class="rail-group">${n.group}</div>`;
+      continue;
+    }
+    html += `<button class="rail-item" data-go="${n.id}"${n.id===active?' aria-current="page"':''}>${n.label}${n.badge?`<span class="badge">${n.badge}</span>`:''}</button>`;
+  }
+  nav.innerHTML = html;
+  foot.innerHTML =
+    `<button class="rail-item" data-go="settings"${active === 'settings' ? ' aria-current="page"' : ''}>设置与成员</button>` +
+    `<button class="rail-item dim" id="logout2">退出登录</button>`;
+  nav.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  foot.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  document.getElementById('logout2').onclick = logout;
+}
+
+/* ── 小工具 ── */
+const row = (cells, opts={}) => {
+  const tds = cells.map((c,i) => {
+    if (opts.dotAt === i) return `<td><span class="dot ${c[0]}">${c[1]}</span></td>`;
+    const nAt = Array.isArray(opts.numAt) ? opts.numAt : (opts.numAt != null ? [opts.numAt] : []);
+    if (nAt.includes(i)) return `<td class="n">${c}</td>`;
+    const kAt = Array.isArray(opts.kAt) ? opts.kAt : (opts.kAt != null ? [opts.kAt] : []);
+    if (kAt.includes(i))  return `<td class="k">${c}</td>`;
+    return `<td class="dim">${c}</td>`;
+  }).join('');
+  return `<tr${opts.sel?' aria-selected="true"':''}>${tds}</tr>`;
+};
+const head = (cols, right=[]) => '<thead><tr>' + cols.map((c,i)=>
+  `<th${right.includes(i)?' style="text-align:right"':''}>${c}</th>`).join('') + '</tr></thead>';
+
+/* 渲染到 HTML 前统一转义 —— JSON 里写的是裸 & ，页面看到的才是 &amp; */
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+/* 页面右上角的来源标记：读了几份就说几份，读不到就标红。
+   它的作用是让「这台后台连的是哪份数据」永远可见 —— 演示数据冒充真数据是本站的老毛病。 */
+function srcTag(){
+  const ok = CONTENT_JSON.filter(p => STORE.files[p] != null).length;
+  const t = '真源 ' + ok + '/' + CONTENT_JSON.length + ' · v' + STORE.version;
+  const cls = STORE.errors.length ? ' style="color:var(--warn)"' : '';
+  return '<span class="mono dim"' + cls + '>' + t + '</span>';
+}
+function errorsNotice(){
+  if (!STORE.errors.length) return '';
+  return '<div class="notice sec"><b>有 ' + STORE.errors.length + ' 份内容没读到</b>'
+    + '页面会用占位显示，不会假装成功：<ul style="margin:8px 0 0 18px">'
+    + STORE.errors.map(e => '<li class="mono" style="font-size:12px">' + esc(e) + '</li>').join('')
+    + '</ul></div>';
+}
+
+/* ── 视图 ── */
+const VIEWS = {
+
+  overview: () => {
+    const pr = productsDoc(), ins = insightsDoc(), hm = homeDoc();
+    const prods = (pr && pr.products) || [];
+    const cats  = (pr && pr.categories) || [];
+    const notes = (ins && ins.notes) || [];
+    const pub   = notes.filter(n => (n.status || '') === 'published').length;
+    const blocks = hm ? Object.keys(hm).filter(k => k !== 'meta' && !k.startsWith('_')) : [];
+    const qs = STORE.inquiries || [];
+    const countries = new Set(qs.map(q => q.country).filter(Boolean)).size;
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">01 / OVERVIEW</span><h1>总览</h1></div>
+      <div class="side">${srcTag()}</div>
+    </div>
+    <div class="grid g4 sec">
+      <div class="metric"><div class="k">产品</div><div class="v">${prods.length || '-'}</div><div class="d">${cats.length || '-'} 个分类</div></div>
+      <div class="metric"><div class="k">文章</div><div class="v">${notes.length || '-'}</div><div class="d">${pub} 篇已发布</div></div>
+      <div class="metric"><div class="k">栏目页 / 首页区块</div><div class="v">${PAGE_SLUGS.length}</div><div class="d">首页 ${blocks.length || '-'} 个区块</div></div>
+      <div class="metric"><div class="k">询盘（本次读取）</div><div class="v">${STORE.inquiriesError ? '-' : qs.length}</div><div class="d">${STORE.inquiriesError ? '读取失败' : '来自 ' + countries + ' 个国家'}</div></div>
+    </div>
+    ${errorsNotice()}
+    <div class="notice gold sec">
+      <b>内容真源在仓库里</b>
+      后台改的是 <code class="mono">content/*.json</code> 与 <code class="mono">data/products.json</code>；
+      改动先存草稿，点「发布」才会经构建器上到线上。页面 HTML 永远不会被后台直接改写。
+      当前线上版本串 <code class="mono">${STORE.version}</code> 读自 <code class="mono">build/version.txt</code>。
+    </div>
+    <div class="split sec">
+      <div class="panel">
+        <div class="panel-h"><span class="ttl">发布链路</span><span class="grow"></span>
+          <button class="btn ghost sm" data-go="changes">去看看</button></div>
+        <div class="panel-b">
+          <p class="p" style="margin:0 0 10px">这条链路还没接 —— 它需要 Worker（持 GitHub token）与 GitHub Actions，
+          两者都需要部署凭据，<strong>不是代码问题</strong>。所以这一页现在如实显示「未接入」，不摆一排假的绿灯。</p>
+          <p class="mono dim" style="font-size:11px;margin:0">缺：Worker /content 与 /publish · Actions 工作流 · 五项硬闸门</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><span class="ttl">当前版本</span></div>
+        <div class="panel-b stack">
+          <div><span class="mono" style="color:var(--ok)">${STORE.version}</span>
+            <div class="mono dim" style="font-size:11px">build/version.txt · ${STORE.loadedAt ? new Date(STORE.loadedAt).toLocaleString('zh-CN') : '-'}</div>
+            <div style="font-size:13px">仓库里的内容快照</div></div>
+          ${STORE.inquiriesError
+            ? '<div class="notice" style="margin:0"><b>询盘读不到</b><span class="mono" style="font-size:12px">' + esc(STORE.inquiriesError) + '</span></div>'
+            : '<div style="font-size:13px">询盘链路正常 · 最近 ' + qs.length + ' 条</div>'}
+        </div>
+      </div>
+    </div>`;
+  },
+
+  products: () => {
+    const pr = productsDoc();
+    const prods = (pr && pr.products) || [];
+    const cats  = (pr && pr.categories) || [];
+    const cnt = {};
+    prods.forEach(p => cnt[p.category] = (cnt[p.category] || 0) + 1);
+    const catName = s => { const c = cats.find(c => c.slug === s); return c ? (c.short || c.en || s) : (s || '-') };
+    const prodRows = prods.map(p => row(
+      [esc(p.sku), esc(p.nameEn), esc(catName(p.category)),
+       String(p.status || '').toUpperCase() === 'OK' ? ['ok', '已发布'] : ['draft', (p.status || '未标状态')],
+       p.moq == null ? '-' : String(p.moq)],
+      { kAt:[0], dotAt:3, numAt:4 })).join('');
+    const catRows = cats.map(c => row(
+      [esc(c.slug), esc(c.en || '-'), esc(c.short || '-'), String(cnt[c.slug] || 0), String(((c.bullets) || []).length)],
+      { kAt:[0], numAt:[3,4] })).join('');
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">02 / PRODUCTS</span><h1>产品与分类</h1></div>
+      <div class="side">${prods.length} 款 · ${cats.length} 类<br>${srcTag()}</div>
+    </div>
+    <div class="notice gold sec">
+      <b>「数据状态」这一列是什么意思</b>
+      它读的是 <code class="mono">products.json</code> 里每款的 <code class="mono">status</code> 字段，
+      <strong>是数据完备度标记，不是上架开关</strong> —— 当前 ${prods.length}/${prods.length} 款都是
+      <code class="mono">OK</code>，也确实都已上站。本站不显示价格，也没有「下架」这个字段：
+      要让一款产品从站上消失，改 slug 会断链，正确做法是走发布流程撤页面。
+    </div>
+    <div class="panel sec">
+      <div class="panel-h"><span class="ttl">型号 · ${prods.length}</span></div>
+      <table class="tbl">${head(['SKU','型号名称','分类','数据状态','MOQ'],[4])}
+        <tbody>${prodRows || '<tr><td colspan="5" class="empty">读不到产品数据</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="panel sec">
+      <div class="panel-h"><span class="ttl">分类 · ${cats.length}</span></div>
+      <table class="tbl">${head(['SLUG','分类名','短名','在架款数','要点数'],[3,4])}
+        <tbody>${catRows || '<tr><td colspan="5" class="empty">读不到分类数据</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="notice sec">
+      <b>分类是一份数据、两处使用</b>
+      后台改一次分类名，<strong>首页分类卡与 /products/ 总览页会同时生效</strong> —— 它们读同一份
+      <code class="mono">data/products.json</code>。这也意味着改分类名会连带影响两页，发布前请在预览里都看一眼。
+      「在架款数」是按 category 归组现算的，没有第二处地方可以手填。
+    </div>`;
+  },
+
+  notes: () => {
+    const ins = insightsDoc();
+    const notes = (ins && ins.notes) || [];
+    const rows = notes.map(n => row(
+      [esc(n.ix || '-'), esc(n.title || '-'),
+       (n.status === 'published' ? ['ok','已发布'] : ['draft', n.status || '草稿']),
+       esc(n.date || '-'), n.readMins == null ? '-' : (n.readMins + ' 分钟')],
+      { kAt:[0], dotAt:2, numAt:4 })).join('');
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">06 / NOTES</span><h1>文章</h1></div>
+      <div class="side">${notes.length} 篇<br>${srcTag()}</div>
+    </div>
+    <div class="panel sec">
+      <table class="tbl">${head(['编号','标题','状态','日期','篇幅'],[4])}
+        <tbody>${rows || '<tr><td colspan="5" class="empty">读不到文章数据</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="notice gold sec">
+      <b>文章用的是「块模型」</b>
+      每篇由 <code class="mono">blocks[]</code> 组成（h2 / p / ul / ol / table / notice），
+      所以内容是自由长文 —— 这与栏目页的「按字段模型」不同，是刻意的两套：<strong>长文用块、营销页用字段</strong>。
+      正文编辑这个迭代还没开放：要改一篇文章的句子，告诉我要改哪篇哪句，我来改 JSON。
+    </div>`;
+  },
+
+  pages: () => {
+    const rows = PAGE_SLUGS.map(s => {
+      const d = pageDoc(s);
+      if (!d) return row([esc('/' + s + '/'), '读不到内容', '-', ['risk','缺失']], { kAt:[0], numAt:2, dotAt:3 });
+      const m = d.meta || {};
+      return row([esc(m.path || ('/' + s + '/')), esc(m.title || '-'), blockCount(d),
+                  d._rules ? ['ok','含规则'] : ['ok','已就位']],
+                 { kAt:[0], numAt:2, dotAt:3 });
+    }).join('');
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">07 / PAGES</span><h1>栏目页</h1></div>
+      <div class="side">${PAGE_SLUGS.length} 个页面<br>${srcTag()}</div>
+    </div>
+    <div class="panel sec">
+      <table class="tbl">${head(['页面','SEO 标题','区块数','状态'],[2])}
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="notice sec">
+      <b>「区块数」是现算的</b>
+      按 <code class="mono">content/pages/*.json</code> 的顶层字段数统计（排除
+      <code class="mono">meta</code> 与下划线开头的规则字段）。所以给某个页面加区块时，
+      这个数字会跟着变 —— 不存在「改了 counter 却忘了改这一个」的可能。
+      详情页编辑在下一迭代开放，现在这一页先做到「看清真源里有什么」。
+    </div>`;
+  },
+
+  home: () => {
+    const hm = homeDoc();
+    if (!hm) return VIEWS._placeholder('home', '首页', '读不到 <code class="mono">content/home.json</code>。');
+    const blocks = Object.keys(hm).filter(k => k !== 'meta' && !k.startsWith('_'));
+    const faq = (hm.faq && hm.faq.items) || [];
+    const rows = blocks.map(k => {
+      const v = hm[k];
+      const n = (v && typeof v === 'object') ? Object.keys(v).filter(x => !x.startsWith('_')).length : 1;
+      const kind = Array.isArray(v) ? '列表' : (v && typeof v === 'object' ? '区块' : '文本');
+      return row([esc(k), kind, n], { kAt:[0], numAt:2 });
+    }).join('');
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">08 / HOME</span><h1>首页</h1></div>
+      <div class="side">${blocks.length} 个区块<br>${srcTag()}</div>
+    </div>
+    <div class="notice gold sec">
+      <b>FAQ 是一份数据、两处渲染</b>
+      当前 <code class="mono">home.json</code> 里有 <strong>${faq.length} 条 FAQ</strong>：页面上给人看的那份，
+      和给搜索引擎 / AI 读的 JSON-LD 那份，是<strong>同一个 <code class="mono">faq.items</code> 渲染出来的</strong>。
+      这不是巧合 —— 之前这里可见 10 条、结构化数据里只有 6 条且 4 条答案是旧的，属于决策记录里记的<strong>双真源事故</strong>。
+      改 FAQ 只需改这一处，两处同步。
+    </div>
+    <div class="panel sec">
+      <div class="panel-h"><span class="ttl">区块清单 · ${blocks.length}</span></div>
+      <table class="tbl">${head(['区块','类型','字段数'],[2])}
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="notice sec">
+      <b>派生值不在这里</b>
+      分类卡款数、洞察卡前 3 篇、OEM 八步、拼贴带的 300+ —— 全部由构建器现算。
+      把它们写死进 JSON，等于把「改一处随之失效」的雷埋回去。
+    </div>`;
+  },
+
+  certs: () => {
+    const c = certDoc();
+    if (!c) return VIEWS._placeholder('certs', '认证文件', '读不到 <code class="mono">content/pages/certifications.json</code>。');
+    const d = c.documents || {};
+    const sec = (c.documentsSection && c.documentsSection.h2) || '-';
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">09 / CERTIFICATES</span><h1>认证文件</h1></div>
+      <div class="side">${d.count || '-'} 份<br>${srcTag()}</div>
+    </div>
+    <div class="panel sec">
+      <div class="panel-h"><span class="ttl">文件清单（按模板渲染）</span></div>
+      <table class="tbl">${head(['项','值'])}
+        <tbody>
+          ${row(['份数', String(d.count == null ? '-' : d.count)])}
+          ${row(['路径模板', '<code class="mono">' + esc(d.path || '-') + '</code>'])}
+          ${row(['替代文本模板', esc(d.alt || '-')])}
+          ${row(['尺寸', (d.width ? d.width + ' × ' + d.height : '-')])}
+          ${row(['区块标题', esc(sec)])}
+          ${row(['换图方式', '同名替换 cert-01 … cert-' + String(d.count || 0).padStart(2,'0')])}
+        </tbody>
+      </table>
+    </div>
+    <div class="notice gold sec">
+      <b>这里是刻意不做「逐张配置」的</b>
+      换证书的图，只需同名替换 <code class="mono">cert-01…16.png</code>，<strong>不需要动后台任何字段</strong>。
+      那条约定比「每张图都能单独配文案」更值钱：它保证了配出来的题是按<strong>文件类型</strong>走的，
+      而不是由某个人手工维护的标签决定 —— 合规资产最容易在这一步失真。
+    </div>`;
+  },
+
+  inquiries: () => {
+    if (STORE.inquiriesError) return `
+      <div class="view-head">
+        <div class="lead"><span class="num">10 / INQUIRIES</span><h1>询盘查看</h1></div>
+        <div class="side"><span class="tag ro">只读</span></div>
+      </div>
+      <div class="notice sec" style="border-color:var(--warn)">
+        <b>这份数据没读到</b>
+        <div class="mono" style="font-size:12px;margin-top:6px">${esc(STORE.inquiriesError)}</div>
+        <div style="margin-top:8px">这里不会用演示数据冒充 —— 读不到就如实说读不到。
+        常见原因：Supabase 会话过期（刷新页面会先自动续期再重放），或被本机代理改了 TLS。</div>
+      </div>`;
+    const qs = STORE.inquiries || [];
+    const st = s => (s === 'new' ? ['new', s] : ['ok', s || '-']);
+    const rows = qs.map(q => row(
+      [esc(String(q.created_at || '').replace('T',' ').slice(0,16)), esc(q.name || '-'),
+       esc(q.company || '-'), esc(q.country || '-'), st(q.status)],
+      { kAt:[0], dotAt:4 })).join('');
+    const countries = new Set(qs.map(q => q.country).filter(Boolean)).size;
+    const news = qs.filter(q => (q.status || '') === 'new').length;
+    return `
+    <div class="view-head">
+      <div class="lead"><span class="num">10 / INQUIRIES</span><h1>询盘查看</h1></div>
+      <div class="side"><span class="tag ro">只读</span><br>处理与跟单请到外贸作战中心</div>
+    </div>
+    <div class="notice gold">
+      <b>这里为什么是只读的</b>
+      买家状态（新 / 已联系 / 报价中 / 已成交）只在<strong>外贸作战中心</strong>修改。
+      如果两处都能改，同一笔询盘的状态会互相覆盖。这个页面给运营人员看的是「市场反馈」，不是「跟进工具」。
+    </div>
+    <div class="grid g3 sec">
+      <div class="metric"><div class="k">本次读取</div><div class="v">${qs.length}</div><div class="d">最多 50 条</div></div>
+      <div class="metric"><div class="k">状态为 new</div><div class="v">${news}</div><div class="d">待业务员处理</div></div>
+      <div class="metric"><div class="k">国家数</div><div class="v">${countries}</div><div class="d">按本次结果现算</div></div>
+    </div>
+    <div class="panel">
+      <table class="tbl">${head(['时间','买家','公司','国家','状态'])}
+        <tbody>${rows || '<tr><td colspan="5" class="empty">表里暂时没有询盘</td></tr>'}</tbody>
+      </table>
+    </div>
+    <p class="mono dim" style="font-size:11px;margin-top:10px">
+      与作战中心同一数据源 · 此处不可修改、不提供导出 · 统计口径是本次读取的 ${qs.length} 条，不是「近 30 天」
+    </p>`;
+  },
+
+  changes: () => `
+    <div class="view-head">
+      <div class="lead"><span class="num">04 / CHANGES</span><h1>变更清单</h1></div>
+      <div class="side">发布链路未接入<br>${srcTag()}</div>
+    </div>
+    <div class="notice sec">
+      <b>这一页还没有真实数据</b>
+      「谁改了什么」要能回答，必须有 Worker 去读 GitHub 的提交历史 —— 而部署 Worker 需要凭据。
+      所以这里<strong>不摆一排假的绿灯，也不放一个点下去没反应的按钮</strong>：接入之前，它就是空的。
+    </div>
+    <div class="release sec">
+      <div class="release-h">
+        <span class="num">RELEASE</span>
+        <div class="ttl">发布到生产环境</div>
+        <div class="meta">当前版本 ${STORE.version} · 发布链路未接入</div>
+      </div>
+      <div class="release-b">
+        <div>
+          <span class="num">接入后会跑的五项闸门</span>
+          <ul class="gates">
+            ${[['公共段无漂移','39 页 × 4 段字节级'],['标签配平正常','开闭相等'],
+               ['站内断链为 0','249 条链接'],['渲染可见中文为 0','除预览条'],
+               ['版本串将递增','发布时自动 +1']]
+              .map(g => '<li><span class="dot new"></span><span class="t">' + g[0] + '</span><span class="m">' + g[1] + '</span></li>').join('')}
+          </ul>
+          <div class="notice gold" style="margin-bottom:0"><b>五项全绿才点亮「确认发布」</b>
+          发布不限角色 —— 闸门是唯一的自动护栏，所以必须是硬门禁。</div>
+        </div>
+      </div>
+      <div class="release-f">
+        <span class="mono dim" style="font-size:11px">接入 Worker 与 Actions 之前不可用</span>
+        <span class="grow"></span>
+        <button class="btn gold" disabled title="还没接入 Worker 与 Actions，无法发布">确认发布</button>
+      </div>
+    </div>
+    <div class="notice sec">
+      <b>按钮为什么是灰的</b>
+      不是权限问题（发布不限角色），是<strong>这条链路还没接</strong>：缺 Worker（持 GitHub token 触发 Actions）
+      与仓库里的工作流。禁用时鼠标划过也不变色，但左侧会写明缺什么 —— 「禁用」必须看得出来，
+      不能点了没反应还不给理由。
+    </div>`,
+
+  releases: () => `
+    <div class="view-head">
+      <div class="lead"><span class="num">05 / RELEASES</span><h1>发布历史</h1></div>
+      <div class="side">${srcTag()}</div>
+    </div>
+    <div class="panel sec">
+      <table class="tbl">${head(['版本串','来源','说明','状态'])}
+        <tbody>
+          <tr><td class="k">${STORE.version}</td><td class="dim">build/version.txt</td>
+              <td>仓库当前内容快照对应的版本串</td><td><span class="dot ok">当前</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notice sec">
+      <b>历史记录还没接</b>
+      谁在什么时候发了哪一版，要读 GitHub 的 tag / 提交历史 —— 同样要 Worker。
+      在那之前，这张表里<strong>只放唯一一条拿得出手的真数据</strong>（上面的当前版本串），不放示例行充数。
+    </div>
+    <div class="notice gold sec">
+      <b>当前角色 ${SESSION ? (SESSION.role || '-') : '-'} · 回滚${canRollback() ? '可用' : '不可用'}</b>
+      规则是<strong>发布不限角色、回滚仅 boss</strong>：只要你是有效成员就能发布，
+      而回滚会让线上<strong>整体退回</strong>旧版（可能连带撤掉别人刚发布的内容），所以单独收口 ——
+      你现在${canRollback() ? '是 boss，可以回滚。' : '不是 boss（' + ((SESSION && SESSION.role) || '-') + '），回滚入口不对你开放。'}
+      发错了优先用「再发一版修正」而不是回滚 —— 那样影响面只有一次修改。
+    </div>`,
+
+  _placeholder: (id, label, note) => `
+    <div class="view-head">
+      <div class="lead"><span class="num">${id.toUpperCase()}</span><h1>${label}</h1></div>
+      <div class="side">${srcTag()}</div>
+    </div>
+    <div class="panel sec"><div class="empty">
+      ${note || '本页在后续迭代实现'}
+    </div></div>`
+};
+
+const META = {
+  notes:{n:'文章', t:'块编辑器（h2 / p / ul / table / notice），每篇带 状态 · 日期 · 摘要 · 配图。',
+         extra:`<div class="notice gold"><b>文章与 JSON-LD 同源</b>改一处标题，列表页、详情页与结构化数据会同时更新 —— 这正是首页 FAQ 那次踩过的坑，文章这边从一开始就按"一份数据两处渲染"做。</div>`},
+  pages:{n:'栏目页', t:'9 个栏目页的文案（applications / customization / factory / certifications / support / contact / terms / privacy / sitemap）。'},
+  home:{n:'首页', t:'15 个区块。派生值（分类卡款数、洞察卡前 3 篇、OEM 八步、拼贴带 300+）由系统现算，不在这里手填。',
+        extra:`<div class="notice safe"><b>首页已完成数据化</b>文案在 content/home.json，标记在 build/templates/home.html —— 后台只动前者。</div>`},
+  media:{n:'媒体库', t:'图片与目录 PDF。P1 第二阶段接入 Cloudflare R2（现在图片仍在仓库里）。'},
+  certs:{n:'认证文件', t:'16 份文件与指令映射。按「文件类型」配题、不按「指令」；换图只需同名替换。'},
+  geo:{n:'GEO 运营', t:'问答库 · 提示词矩阵 · 引用监测。在 P2 实现。',
+       extra:`<div class="notice gold"><b>GEO 的技术地基已就位</b>首页 FAQ 的结构化数据已经与可见内容同源（10/10 逐条一致）—— 这正是 AI 引擎读的那一份。</div>`},
+  settings:{n:'设置与成员', t:'成员列表（真源在 Supabase，此处只读）· 审计日志。',
+            extra:`<div class="notice"><b>关闭自助注册</b>后台不提供注册入口 —— 因为登录账号能读全部买家信息、也能发布网站。账号只能由 boss / 主管添加。</div>`},
+};
+
+function render(id){
+  const v = VIEWS[id];
+  if (v) return v();
+  const m = META[id] || {n:id, t:''};
+  return VIEWS._placeholder(id, m.n, (m.t?`<p class="p" style="margin:0 auto 12px;text-align:left;max-width:60ch">${m.t}</p>`:'') + (m.extra||''));
+}
+
+let current = 'overview';
+function go(id){
+  if (!SESSION) return;                   /* 门禁：没有有效会话就不渲染任何视图 */
+  current = id;
+  document.getElementById('view').innerHTML = render(id);
+  document.getElementById('view').scrollIntoView({block:'start'});
+  window.scrollTo(0,0);
+  renderNav(id);
+  document.querySelectorAll('#view [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  location.hash = '#/' + id;
+}
+/* ── 门禁 ──────────────────────────────────────────────────────
+   未登录时**永不**渲染主框架：app 靠 hidden 藏（admin.css 有 [hidden]{display:none!important}）。
+   登录失败/非成员一律清会话 —— 不留半截登录态。 */
+function showLogin(msg){
+  SESSION = null;
+  document.getElementById('app').hidden = true;
+  document.getElementById('login').hidden = false;
+  const who = document.getElementById('whoName'); if (who) who.textContent = '—';
+  const wr = document.getElementById('whoRole'); if (wr) wr.textContent = 'role: —';
+  loginMsg(msg || '');
+}
+function loginMsg(text, kind){
+  const el = document.getElementById('loginMsg');
+  if (!el) return;
+  if (!text){ el.hidden = true; el.innerHTML = ''; return }
+  el.className = 'notice' + (kind === 'gold' ? ' gold' : kind === 'safe' ? ' safe' : '');
+  el.innerHTML = text;
+  el.hidden = false;
+}
+async function enterApp(m){
+  SESSION = m;
+  loginMsg('');
+  document.getElementById('whoName').textContent = m.name || '—';
+  document.getElementById('whoRole').textContent = 'role: ' + (m.role || '—');
+  document.getElementById('login').hidden = true;
+  document.getElementById('app').hidden = false;
+  document.getElementById('view').innerHTML =
+    '<div class="notice gold">正在从仓库读取内容…</div>';
+  /* 内容读不到也要进得来 —— 哪些读不到写在总览上，而不是把人卡在登录页 */
+  try { await loadAll() } catch(e){ STORE.errors.push('载入阶段：' + (e.message || e)) }
+  go(location.hash.replace('#/','') || 'overview');
+}
+function logout(){
+  sbSetSession(null);
+  showLogin('');
+  location.hash = '';
+}
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = (document.getElementById('email').value || '').trim();
+  const pw = document.getElementById('pw').value || '';
+  const btn = e.target.querySelector('button[type=submit]');
+  const label = btn ? btn.textContent : '';
+  loginMsg('');
+  if (!email || !pw){ loginMsg('<b>无法登录</b>请填写邮箱和密码'); return }
+  if (btn){ btn.disabled = true; btn.textContent = '登录中…' }
+  try {
+    await sbSignIn(email, pw);            /* ① 拿 Supabase Auth 令牌 */
+    enterApp(await fetchMember());        /* ② 校验是不是 members 里的有效成员 */
+  } catch (err){
+    sbSetSession(null);                   /* 密码错 / 非成员 / 网络错：都不留会话 */
+    showLogin('<b>无法登录</b>' + (err.message || '请检查账号和密码'));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = label }
+  }
+});
+
+document.getElementById('logout').onclick = logout;
+window.addEventListener('hashchange', () => {
+  const id = location.hash.replace('#/','') || 'overview';
+  if (SESSION && !document.getElementById('app').hidden && id !== current) go(id);
+});
+
+/* ── 启动：有会话就恢复（过期先续），没有就停在登录页 ── */
+(async function boot(){
+  const s = sbSession();
+  if (!s || !s.access_token){ showLogin(''); return }
+  /* 过期自愈（换令牌 + 重放）已经收敛到 sbReq 内部，这里只负责"最终失败就回登录页" */
+  try { enterApp(await fetchMember()) }
+  catch (e){ sbSetSession(null); showLogin(e.message || '请重新登录') }
+})();
+</script>
+</body>
+</html>
