@@ -123,6 +123,7 @@ function mockSb(page, S) {
       view: document.getElementById('view').textContent,
       rows: document.querySelectorAll('#view table.tbl tbody tr').length,
       cards: document.querySelectorAll('#view .pcard').length,
+      ccards: document.querySelectorAll('#view .ccard').length,
       firstRows: (function(){ const t = document.querySelector('#view table.tbl tbody'); return t ? t.children.length : 0 })(),
       tableCount: document.querySelectorAll('#view table.tbl').length,
       nav: (document.querySelector('#railNav [aria-current="page"]') || {}).textContent || '',
@@ -141,19 +142,21 @@ function mockSb(page, S) {
   /* ── T3/T4 产品与分类：必须出现真实 SKU 与真实分类短名 ── */
   section('产品与分类');
   const pr = await go('products');
-  /* vadmin-010：型号区已由表格改为卡片流（缩略图 + 状态点），本页只剩分类那一张表。 */
-  check('T3 型号卡片 16 张（本页剩 1 张表：分类）',
-    pr.cards === EXPECT.products && pr.tableCount === 1,
-    '卡片 ' + pr.cards + ' 张 · 表 ' + pr.tableCount + ' 张');
+  /* vadmin-010：型号区改卡片流；vadmin-011：分类区也改卡片流 —— 本页不再有表格。 */
+  check('T3 型号卡片 16 张 + 分类卡片 6 张（本页已无表格）',
+    pr.cards === EXPECT.products && pr.ccards === EXPECT.categories && pr.tableCount === 0,
+    '型号卡 ' + pr.cards + ' · 分类卡 ' + pr.ccards + ' · 表 ' + pr.tableCount);
   check('T3b 卡片带缩略图元素（图库按 sku 匹配）',
     await page.evaluate(() => document.querySelectorAll('#view .pcard-thumb img').length) === EXPECT.products);
+  check('T3c 分类卡带卡片图预览（assets/img 同名文件）',
+    await page.evaluate(() => document.querySelectorAll('#view .ccard-thumb img').length) === EXPECT.categories);
   check('T4 含真实 SKU ' + EXPECT.sku, pr.view.includes(EXPECT.sku));
   check('T5 含真实分类短名 ' + EXPECT.catShort, pr.view.includes(EXPECT.catShort));
-  const catSum = await page.evaluate(() => {
-    const t = [...document.querySelectorAll('#view table.tbl')][0];   // vadmin-010：0 = 分类表
-    return t ? [...t.querySelectorAll('tbody tr')].reduce((s, tr) => s + Number((tr.children[3] || {}).textContent || 0), 0) : -1;
-  });
-  check('T6 分类表在架款数合计 = 16（派生值正确）', catSum === EXPECT.products, '实际 ' + catSum);
+  /* vadmin-011：分类区改卡片后，「在架 N 款」写在 .ccard-meta 里 */
+  const catSum = await page.evaluate(() =>
+    [...document.querySelectorAll('#view .ccard .ccard-meta')]
+      .reduce((s, el) => s + Number((/在架\s*(\d+)\s*款/.exec(el.textContent) || [0, 0])[1]), 0));
+  check('T6 分类卡在架款数合计 = 16（派生值正确）', catSum === EXPECT.products, '实际 ' + catSum);
 
   /* ── T7/T8 文章与栏目页 ── */
   section('文章 / 栏目页');

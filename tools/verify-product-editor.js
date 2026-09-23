@@ -89,8 +89,6 @@ function mockSb(page) {
 
   /* ⚠️ CONTENT_BASE 默认是生产 Worker —— 本地测试不指回桩就会 401（内容 0/15） */
   await page.evaluateOnNewDocument(o => { try { localStorage.setItem('va_content_base', o) } catch(e){} }, ORIGIN);
-  /* ⚠️ CONTENT_BASE 默认是生产 Worker —— 本地测试不指回桩就会 401（内容 0/15） */
-  await page.evaluateOnNewDocument(o => { try { localStorage.setItem('va_content_base', o) } catch(e){} }, ORIGIN);
   await page.goto(URL_PAGE, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => {
     document.getElementById('email').value = 'ops@vorlina.net';
@@ -114,7 +112,7 @@ function mockSb(page) {
   check('T2 每张卡片都有缩略图元素', list.imgs === EXPECT.total, '实际 ' + list.imgs);
   check('T3 首卡 SKU = 真源 ' + EXPECT.sku, list.firstSku.trim() === EXPECT.sku, '实际 ' + list.firstSku);
   check('T4 每张卡片都有状态点', list.dots === EXPECT.total, '实际 ' + list.dots);
-  check('T5 型号区已无表格（只剩分类那张）', list.tables === 1, '实际 ' + list.tables);
+  check('T5 产品页已无表格（vadmin-011 分类区也改卡片）', list.tables === 0, '实际 ' + list.tables);
 
   /* ── 打开首款分区表单 ── */
   section('产品编辑 · 分区表单');
