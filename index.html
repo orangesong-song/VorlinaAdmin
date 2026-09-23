@@ -1374,17 +1374,19 @@ function ensurePickDom(){
     + '<div class="pick-body" id="pickBody"></div></div>');
   document.getElementById('pickClose').onclick = closePick;
   document.getElementById('pickMask').onclick = closePick;
-  document.getElementById('pickFile').onchange = async e => {
+  document.getElementById('pickFile').onchange = e => {
     const fs = Array.from(e.target.files || []);
     e.target.value = '';
     if (!fs.length) return;
-    await mediaUploadFiles(fs);        /* 复用上传管线：R2 + cms 分支双写 */
-    renderPickGrid();
+    const p = mediaUploadFiles(fs);    /* 复用上传管线：R2 + cms 分支双写 */
+    renderPickGrid();                  /* vadmin-018 busy 提示立刻可见（修复：上传无反馈 = 像「没上传」） */
+    p.then(renderPickGrid).catch(renderPickGrid);
   };
 }
 function openPick(pathStr){
   if (!ED) return;
   PICK.path = JSON.parse(pathStr);
+  MEDIA.msg = ''; MEDIA.msgKind = '';   /* vadmin-018 清掉上一次的上传结果，别串场 */
   ensurePickDom();
   document.getElementById('pickMask').hidden = false;
   document.getElementById('pickPanel').hidden = false;
@@ -1417,8 +1419,11 @@ function renderPickGrid(){
   const body = document.getElementById('pickBody');
   if (!body) return;
   const items = pickItems();
+  /* vadmin-018 弹层内反馈：上传中 → 结果横幅（成功 safe / 失败 gold），复用 admin.css 的 .notice */
+  const busy = MEDIA.busy ? '<div class="notice">正在上传，传完会自动出现在下面…</div>' : '';
+  const upmsg = (!MEDIA.busy && MEDIA.msg) ? '<div class="notice ' + (MEDIA.msgKind || '') + '">' + esc(MEDIA.msg) + '</div>' : '';
   const note = MEDIA.error ? '<p class="dim">' + esc(MEDIA.error) + '</p>' : '';
-  body.innerHTML = note + (items.length
+  body.innerHTML = busy + upmsg + note + (items.length
     ? '<div class="pick-grid">' + items.map(it =>
         '<button type="button" class="pick-item" data-pickitem="' + escAttr(it.name) + '" title="点击填入">'
         + '<img src="' + escAttr(it.url) + '" loading="lazy" onerror="this.style.visibility=\'hidden\'">'

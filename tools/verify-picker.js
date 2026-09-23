@@ -8,6 +8,10 @@
  *   ② 运营换图要去媒体库复制文件名再回来粘贴 —— 反人类。vadmin-017 加「选图」弹层：
  *      点图即填 + 弹层内可直接上传。
  *
+ * vadmin-018 增补：弹层内「上传新图」必须有可见反馈
+ *   （此前上传结果只写 MEDIA.msg，产品编辑页里 rerenderMedia 直接 return
+ *     —— 成功失败都无动静，用户以为「没有上传新图」）。
+ *
  * 断言原则：真源字面量、交互真生效、请求头真的带上了。
  */
 const puppeteer = require('puppeteer-core');
@@ -126,6 +130,47 @@ function mockSb(page) {
   await new Promise(r => setTimeout(r, 800));
   await page.screenshot({ path: SHOT });
   out.push('  （截图 → ' + path.basename(SHOT) + '）');
+
+  /* ── PL · 弹层内上传要有反馈（vadmin-018）────────────────
+     页面内包一层 fetch 延迟 600ms，制造确定的 busy 窗口；
+     上传走本地 stub 真落盘，断言完删掉清场。 */
+  section('PL · 弹层内上传反馈（vadmin-018）');
+  await page.evaluate(() => {
+    window._origFetch = window.fetch;
+    window.fetch = (url, opts) => /\/media\/upload$/.test(String(url))
+      ? new Promise(r => setTimeout(() => r(window._origFetch(url, opts)), 600))
+      : window._origFetch(url, opts);
+  });
+  const UP_NAME = 'e2e-上传反馈测试.png';
+  await page.evaluate(name => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], name, { type: 'image/png' }));
+    const inp = document.getElementById('pickFile');
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+  }, UP_NAME);
+  const busyTxt = await page.evaluate(() => {
+    const n = document.querySelector('#pickBody .notice');
+    return n ? n.textContent : '';
+  });
+  check('PL1 点完文件立刻出现「正在上传」横幅（不再毫无反应）', /正在上传/.test(busyTxt), '实际：' + busyTxt);
+  await page.waitForFunction(name => [...document.querySelectorAll('#pickBody .pick-item')]
+    .some(x => x.dataset.pickitem === name), { timeout: 10000 }, UP_NAME);
+  const doneTxt = await page.evaluate(() => {
+    const n = document.querySelector('#pickBody .notice.safe');
+    return n ? n.textContent : '';
+  });
+  check('PL2 上传完成后新图出现在弹层列表（点一下就能填）', true);
+  check('PL3 显示结果横幅（已上传 ' + UP_NAME + '）', /已上传 1 个/.test(doneTxt) && doneTxt.indexOf(UP_NAME) >= 0, '实际：' + doneTxt);
+  /* 清场：删测试文件 + 恢复 fetch + 刷新列表，不给后续断言留脏数据 */
+  await page.evaluate(async name => {
+    await fetch(CONTENT_BASE + '/media/file/img/' + encodeURIComponent(name),
+      { method: 'DELETE', headers: { Authorization: 'Bearer ' + sbToken() } });
+    window.fetch = window._origFetch;
+    await mediaLoad();
+    renderPickGrid();
+  }, UP_NAME).catch(() => {});
+  await new Promise(r => setTimeout(r, 400));
 
   /* ── S · 点图填入 ── */
   section('S · 点图填入');
