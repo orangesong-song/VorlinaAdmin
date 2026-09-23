@@ -327,7 +327,7 @@ function mockSb(page) {
   check('S2 输入框真的变成点选的文件名（' + pickName + '）', s0.firstUsable === pickName, '实际 ' + s0.firstUsable);
   check('S3 草稿对象同步更新（不只改了皮）', s0.docVal === pickName, '实际 ' + s0.docVal);
 
-  /* ── N · ⑤ 图片分区的直传入口（vadmin-019）──────────────── */
+  /* ── N · ⑤ 图片分区的直传入口（vadmin-019，版本戳随发版走）── */
   section('N · ⑤ 图片分区的直传入口（vadmin-019）');
   const n0 = await page.evaluate(() => ({
     ver: (document.querySelector('#edWrap .ed-head') || {}).textContent || '',
@@ -336,7 +336,7 @@ function mockSb(page) {
     addBtn: !!document.querySelector('#edBody [data-pick="null"]'),
     usableN: (function () { try { return edGet(ED.doc, ED.sub.concat(['images','usable'])).length } catch (e) { return -1 } })(),
   }));
-  check('N1 编辑弹窗头带版本戳 vadmin-019（一眼分清旧缓存 / 新 bug）', n0.ver.indexOf('vadmin-019') >= 0, n0.ver.slice(0, 60));
+  check('N1 编辑弹窗头带版本戳 vadmin-020（一眼分清旧缓存 / 新 bug）', n0.ver.indexOf('vadmin-020') >= 0, n0.ver.slice(0, 60));
   check('N2 主图行有「选图」按钮', n0.heroPick);
   check('N3 分区有「上传新图 / 从图库追加」入口', n0.addBtn);
   await page.evaluate(() => document.querySelector('#edBody [data-pick="null"]').click());
