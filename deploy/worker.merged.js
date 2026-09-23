@@ -664,11 +664,20 @@ async function requireMember(request, env) {
   const jwt = m[1];
   const sb = supabaseEnv(env);
 
-  // 1) 验 JWT 身份
-  const u = await fetch(sb.url + '/auth/v1/user', {
+  // 1) 验 JWT 身份（fetch 抛异常 ≠ token 无效 —— 2026-09-23：未捕获异常回 500 无 CORS，
+  //    浏览器显示成 Failed to fetch，把「网络抖动」伪装成「鉴权失败」）
+  let u = await fetch(sb.url + '/auth/v1/user', {
     headers: { Authorization: 'Bearer ' + jwt, apikey: sb.key },
     cf: { cacheTtl: 0 }
-  });
+  }).catch(() => null);
+  if (!u) {
+    await new Promise(r => setTimeout(r, 250));
+    u = await fetch(sb.url + '/auth/v1/user', {
+      headers: { Authorization: 'Bearer ' + jwt, apikey: sb.key },
+      cf: { cacheTtl: 0 }
+    }).catch(() => null);
+  }
+  if (!u) return { ok: false, error: 'member_lookup_failed' };
   if (u.status !== 200) return { ok: false, error: 'invalid_token' };
   const me = await u.json();
   if (!me.id) return { ok: false, error: 'invalid_token' };
@@ -716,9 +725,17 @@ async function handleContent(request, env) {
   if (!p) return json({ ok: false, error: 'missing_path' }, 400, corsFor(request, env, 'content'));
 
   const g = ghApi(env);
-  const r = await fetch(g.base + '/contents/' + p + '?ref=' + encodeURIComponent(ref), {
+  const ghGet = () => fetch(g.base + '/contents/' + p + '?ref=' + encodeURIComponent(ref), {
     headers: g.headers, cf: { cacheTtl: 0 }
-  });
+  }).catch(() => null);
+  // 总览页 15 份并发读取，偶发抖动（2026-09-20 实测 4 份误报；2026-09-23 又现 2 份）。
+  // fetch 抛异常时原来的未捕获错误 = 500 无 CORS = 前端只能显示 Failed to fetch。→ 重试一次，仍失败回带 CORS 的 502。
+  let r = await ghGet();
+  if (!r) {
+    await new Promise(rs => setTimeout(rs, 300));
+    r = await ghGet();
+  }
+  if (!r) return json({ ok: false, error: 'upstream_unreachable', path: p }, 502, corsFor(request, env, 'content'));
   if (r.status === 404) return json({ ok: false, error: 'not_found', path: p }, 404, corsFor(request, env, 'content'));
   if (!r.ok) return json({ ok: false, error: 'github_error', status: r.status }, r.status, corsFor(request, env, 'content'));
   const d = await r.json();

@@ -392,7 +392,20 @@ async function contentFetch(url, opts){
   if (!res.ok) throw new Error('HTTP ' + res.status + '：' + ((j && j.message) || txt || '无响应体'));
   return j;
 }
-async function contentGet(path){ return contentFetch(CONTENT_BASE + '/content?path=' + encodeURIComponent(path)) }
+async function contentGet(path){
+  /* GET 幂等，值得重试；但只重试「网络层抖动」（Chrome: Failed to fetch / Safari: Load failed）——
+     HTTP 级错误（401/404/502）是真实答案，重试反而掩盖问题。Worker 侧同路径已重试一次，这里是第二道保险。 */
+  let lastErr = null;
+  for (let i = 0; i < 3; i++) {
+    try { return await contentFetch(CONTENT_BASE + '/content?path=' + encodeURIComponent(path)) }
+    catch(e){
+      if (!/Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
+      lastErr = e;
+      await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
 async function contentPut(path, obj, message){
   return contentFetch(CONTENT_BASE + '/content', {
     method:'PUT',
