@@ -1305,7 +1305,12 @@ async function mediaUploadFiles(files){
       const t = await res.text();
       let j = null; try { j = JSON.parse(t) } catch(e){}
       if (res.ok && j && j.ok){
-        done.push(j.name || f.name);
+        const upName = j.name || f.name;
+        done.push(upName);
+        JUST_UPLOADED.add(upName);
+        /* vadmin-020：就地登记进本型号 imagery 图库 —— 否则主图下拉列不出、缩略图「图库未匹配」、官网取不到 url */
+        ensureInImagery(upName);
+        if (PICK && PICK.path === null) ensureGalleryAdd(upName);   /* 从「＋上传新图」入口来的：直接进画廊 */
         if (j.gh && !j.gh.ok) failed.push((j.name || f.name) + '（已进媒体库，但写仓库失败：' + (j.gh.error || '') + '）');
       } else {
         failed.push((f.name || '(未命名)') + '（' + ((j && j.error) || 'HTTP ' + res.status) + '）');
@@ -1318,8 +1323,12 @@ async function mediaUploadFiles(files){
   }
   await mediaLoad();
   MEDIA.busy = false;
+  /* vadmin-020：编辑页的缩略图条 / 主图下拉立刻反映新图（否则关掉弹层还以为没传上） */
+  if (ED && typeof edRender === 'function'){ try { edRender() } catch(e){} }
   const parts = [];
-  if (done.length) parts.push('已上传 ' + done.length + ' 个：' + done.join('、'));
+  if (done.length) parts.push('已上传 ' + done.length + ' 个：' + done.join('、')
+    + (ED && ED.path === 'data/products.json'
+       ? '（已登记进本型号图库 —— 点图片加入画廊，或直接在「主图」下拉里选它）' : ''));
   if (failed.length) parts.push('失败 ' + failed.length + ' 个：' + failed.join('；'));
   MEDIA.msg = parts.join('　｜　');
   MEDIA.msgKind = failed.length ? 'gold' : 'safe';
@@ -1419,6 +1428,9 @@ function pickItems(){
     seen.add(n);
     out.push({ name:n, url: imgSrc(src, url), tag:'仓库图' });
   });
+  /* vadmin-020：刚上传的排最前（传完一眼就能看到并点它） */
+  out.sort((a, b) => (JUST_UPLOADED.has(b.name) ? 1 : 0) - (JUST_UPLOADED.has(a.name) ? 1 : 0));
+  out.forEach(it => { if (JUST_UPLOADED.has(it.name)) it.tag = '刚上传'; });
   return out;
 }
 function renderPickGrid(){
@@ -1437,6 +1449,50 @@ function renderPickGrid(){
       ).join('') + '</div>'
     : '<p class="dim">图库是空的 —— 点左上角「上传新图」先传一张。</p>');
 }
+/* ── vadmin-020：让上传的图真的进「本型号图库」────────────────────
+   为什么必须做：媒体库(R2) 与 型号图库(build/data/imagery.json) 是两套列表，
+   而主图下拉、画廊缩略图、官网取图 URL **全部只认 imagery**。
+   不登记 ⇒ 图传上去了，后台哪儿都看不到（下拉里没有、画廊「图库未匹配」、官网无 url）。 */
+let ED_IMAGERY_DIRTY = false;
+const JUST_UPLOADED = new Set();
+const IMAGERY_PATH = 'build/data/imagery.json';
+function edSku(){
+  if (!ED || !ED.doc || ED.path !== 'data/products.json') return null;
+  const p = edGet(ED.doc, ED.sub) || {};
+  return p.sku ? String(p.sku) : null;
+}
+function imageryDoc(){
+  /* ! 未成功加载（null）时**拒绝写入**：宁可登记失败，也绝不拿空对象覆盖真源图库 */
+  const cur = STORE.files[IMAGERY_PATH];
+  return (cur && typeof cur === 'object') ? cur : null;
+}
+function ensureInImagery(name){
+  const sku = edSku();
+  if (!sku || !name) return false;
+  const doc = imageryDoc();
+  if (!doc) return false;
+  if (!doc[sku] || typeof doc[sku] !== 'object') doc[sku] = { items: [] };
+  if (!Array.isArray(doc[sku].items)) doc[sku].items = [];
+  if (doc[sku].items.some(it => it && it.src === name)) return false;
+  doc[sku].items.push({ src: name, url: '/assets/img/' + name });
+  ED_IMAGERY_DIRTY = true;
+  return true;
+}
+/* 缩略图 URL：imagery 命中走官网域；未命中但刚上传过走 Worker 直读（R2）；都没有返回空 */
+function ensureGalleryAdd(name){
+  /* vadmin-020c：从「＋ 上传新图」入口上传 = 意图「给这个型号加图」⇒ 直接进画廊 */
+  if (!ED || ED.path !== 'data/products.json' || !name) return;
+  const p0 = edGet(ED.doc, ED.sub) || {};
+  if (!p0.images) p0.images = { hero: '', usable: [] };
+  if (!Array.isArray(p0.images.usable)) p0.images.usable = [];
+  if (p0.images.usable.indexOf(name) < 0) p0.images.usable.push(name);
+  if (!p0.images.hero) p0.images.hero = name;
+}
+function edThumbUrl(fn, map){
+  if (map && map[fn]) return imgSrc(map[fn], map[fn]);
+  if (MEDIA_UPLOADED.has(fn)) return CONTENT_BASE + '/media/file/img/' + encodeURIComponent(fn);
+  return '';
+}
 function edImgMap(){
   const out = {};
   const img = STORE.files['build/data/imagery.json'];
@@ -1445,9 +1501,9 @@ function edImgMap(){
   return out;
 }
 function edThumb(fn, map, hero){
-  const u = map[fn];
+  const u = edThumbUrl(fn, map);   /* vadmin-020：imagery 未命中但刚上传 → 回退 R2 直读 */
   if (!u) return '<div class="ed-thumb' + (hero ? ' hero' : '') + '"><span class="mono dim">' + esc(fn) + '<br>（图库未匹配）</span></div>';
-  return '<div class="ed-thumb' + (hero ? ' hero' : '') + '"><img src="' + escAttr(imgSrc(u, u)) + '" loading="lazy" onerror="this.style.display=\'none\'"><span class="mono">' + esc(fn) + '</span></div>';
+  return '<div class="ed-thumb' + (hero ? ' hero' : '') + '"><img src="' + escAttr(u) + '" loading="lazy" onerror="this.style.display=\'none\'"><span class="mono">' + esc(fn) + '</span></div>';
 }
 function edImagePreviewsHTML(imagesObj){
   const map = edImgMap();
@@ -1500,9 +1556,9 @@ function edHeroStrip(imgs){
   const list = (imgs.usable || []).slice();
   if (imgs.hero && list.indexOf(imgs.hero) < 0) list.unshift(imgs.hero);
   return '<div class="ed-thumb-row">' + list.map(fn => {
-    const u = map[fn], isHero = (fn === imgs.hero);
+    const u = edThumbUrl(fn, map), isHero = (fn === imgs.hero);   /* vadmin-020：刚上传的图走 R2，别写死官网域 */
     return '<div class="ed-thumb' + (isHero ? ' hero' : '') + '">'
-      + (u ? '<img src="' + escAttr(IMG_BASE + u) + '" loading="lazy" onerror="this.style.display=\'none\'">'
+      + (u ? '<img src="' + escAttr(u) + '" loading="lazy" onerror="this.style.display=\'none\'">'
            : '<div class="ed-thumb-ph">图库未匹配</div>')
       + '<span class="mono">' + esc(fn) + '</span>'
       + (isHero ? '<span class="mono" style="font-size:9px;color:var(--gold-ink)">当前主图</span>'
@@ -1524,11 +1580,18 @@ function edProductHTML(){
     + esc(String(p[k] == null ? '' : p[k]).slice(0,60)) + '</span> · 只读</div>').join('');
   const imgs = p.images || {};
   const usable = imgs.usable || [];
+  /* vadmin-020：媒体库里已登记进本型号图库、但还没加进画廊的图 ——
+     让「打开主图下拉就能看到刚上传的图」成立（此前下拉只列已有画廊，用户永远找不到新图） */
+  const extraOpts = Array.from(MEDIA_UPLOADED).filter(n =>
+      /\.(webp|jpe?g|png|avif|gif|svg)$/i.test(n) && usable.indexOf(n) < 0)
+    .map(n => '<option value="' + escAttr(n) + '"' + (n === imgs.hero ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
   const heroOpts = usable.map(fn =>
     '<option value="' + escAttr(fn) + '"' + (fn === imgs.hero ? ' selected' : '') + '>' + esc(fn) + '</option>').join('');
   const imgBody = '<label class="ed-field"><span class="ed-k">主图 · 从本型号图库里选</span>'
     + '<span class="ed-pickrow"><select class="ed-in" data-ed="' + escAttr(JSON.stringify(base.concat(['images','hero']))) + '">'
-    + (heroOpts || '<option value="">（画廊为空）</option>') + '</select>'
+    + (heroOpts ? '<optgroup label="本型号画廊">' + heroOpts + '</optgroup>' : '')
+    + (extraOpts ? '<optgroup label="媒体库 · 刚上传（未加入画廊）">' + extraOpts + '</optgroup>' : '')
+    + ((heroOpts || extraOpts) ? '' : '<option value="">（暂无图片，点右边「选图」上传）</option>') + '</select>'
     + '<button type="button" class="btn ghost sm" data-pick="' + escAttr(JSON.stringify(base.concat(['images','hero']))) + '">选图</button></span></label>'
     + '<div class="edsec-note">缩略图取自 imagery 图库；点「设为主图」立即切换（仍需保存草稿）。</div>'
     + edHeroStrip(imgs)
@@ -1746,7 +1809,19 @@ async function saveEd(){
   try {
     await contentPut(ED.path, ED.doc, ED.message);
     STORE.files[ED.path] = JSON.parse(JSON.stringify(ED.doc));
-    document.getElementById('edMsg').innerHTML = '<b style="color:var(--ok)">已保存到草稿（cms 分支）。</b>还没上线 —— 去「变更清单」过目后点发布。';
+    let extra = '';
+    if (ED_IMAGERY_DIRTY){
+      /* vadmin-020：新图登记在 imagery.json，必须一并提交，否则下拉有名字、官网取不到 url */
+      const imgDoc = imageryDoc();
+      if (imgDoc){
+        await contentPut(IMAGERY_PATH, imgDoc, '后台：登记新上传图片到型号图库');
+        ED_IMAGERY_DIRTY = false;
+        extra = '（新图已登记进型号图库）';
+      } else {
+        extra = '（⚠ 图库文件未加载成功，新图未登记，请刷新页面重试）';
+      }
+    }
+    document.getElementById('edMsg').innerHTML = '<b style="color:var(--ok)">已保存到草稿（cms 分支）。</b>' + extra + '还没上线 —— 去「变更清单」过目后点发布。';
   } catch(e){
     document.getElementById('edMsg').innerHTML = '<b style="color:var(--warn)">保存失败：</b>' + esc(e.message || String(e));
   } finally { btn.disabled = false; btn.textContent = old }
