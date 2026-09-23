@@ -152,3 +152,18 @@ publish.yml 在 Actions 里 `checkout` 的是 VorlinaSite，`guards.py` 不在�
 
 **上线自检**：`curl https://admin.vorlina.net/` 的字节数应等于 `git hash-object index.html` 对应的文件体积，
 且新功能标记存在（改 UI 后务必同时更新 E2E 判据，见 D123）。
+
+## 八、后台自身的 git 通道（2026-09-23 打通）
+
+**此前这个仓库没有 remote**，GitHub 上那条历史是经 `api.github.com` Git Data API 推的平行历史（与本地无共同祖先）。现已归拢：
+
+1. remote：`origin = https://github.com/orangesong-song/VorlinaAdmin.git`
+2. 强制推送前已留备份分支 `backup-before-force-20260923`（旧 main = `6e6ad01`）。
+3. **`git push` = CF Pages 上线**（约 1 分钟），自定义域 https://admin.vorlina.net/ 。
+
+**本机推网**：github.com 只有走本机代理才通，用
+`git -c http.proxy=http://127.0.0.1:10808 -c https.proxy=http://127.0.0.1:10808 push origin main`
+（本机 PAT 存于 macOS keychain，无需每次输入）。
+
+**上线自检**：`curl https://admin.vorlina.net/` 的字节数应等于 `git hash-object index.html` 对应的文件体积，
+且新功能标记存在（改 UI 后务必同时更新 E2E 判据，见 D123）。
