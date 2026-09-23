@@ -634,9 +634,10 @@ async function smtpSend(input) {
 
 function corsFor(request, env, kind) {
   const origin = request.headers.get('Origin') || '';
-  const methods = kind === 'content' ? 'GET,PUT,OPTIONS'
-    : kind === 'publish' ? 'POST,OPTIONS'
-    : 'GET,OPTIONS';
+  /* vadmin-019：方法白名单统一放开 —— 之前 /media/*、/changes 落进默认 'GET,OPTIONS'，
+     浏览器预检拦死 POST 上传 / DELETE 移除 / POST 变更对比（线上从未传成功过一张图）。
+     所有写路由都要求 Supabase JWT，方法放宽不弱化鉴权；预检头按请求回显，不变。 */
+  const methods = 'GET,POST,PUT,DELETE,OPTIONS';
   const h = {
     'Access-Control-Allow-Methods': methods,
     'Access-Control-Max-Age': '3600',

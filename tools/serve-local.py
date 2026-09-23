@@ -27,7 +27,7 @@ import json
 import os
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # vorlina-admin/
 SITE = os.path.normpath(os.path.join(HERE, '..', 'vorlina-new'))      # 官网真源
@@ -222,7 +222,9 @@ class Handler(SimpleHTTPRequestHandler):
         u = urlparse(self.path)
         if not u.path.startswith('/media/file/'):
             return self._json(404, {'message': 'no route'})
-        name = os.path.basename(u.path[len('/media/file/'):])
+        # ⚠️ 必须 URL 解码：前端发的是 encodeURIComponent(name)，中文名不解码就找不到文件
+        #    （线上 Worker 用 decodeURIComponent，桩与真身行为必须一致 —— 否则守卫在骗人）
+        name = os.path.basename(unquote(u.path[len('/media/file/'):]))
         p = os.path.join(MEDIA_DIR, name)
         if os.path.isfile(p):
             # ⚠️ 不用 os.remove：本机（NAS 卷 + 系统安全机制）会拦住删除并抛错。
@@ -238,7 +240,7 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(200, {'ok': True, 'items': _media_items()})
 
     def do_GET_media_file(self, rel):
-        name = os.path.basename(rel)
+        name = os.path.basename(unquote(rel))      # 同上：与 Worker 的 decodeURIComponent 对齐
         p = os.path.join(MEDIA_DIR, name)
         if not os.path.isfile(p):
             try:                      # 回源线上官网（仓库已有的图）—— 与 Worker 行为一致

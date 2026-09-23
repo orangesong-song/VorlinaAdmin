@@ -183,14 +183,22 @@ async function main() {
   S.member = 'staff';
   await login();
   await page.evaluate(() => { location.hash = '#/releases'; });
-  await new Promise(r => setTimeout(r, 250));
+  /* 等「回滚可用/不可用」真的渲染出来再断言 —— 固定 sleep 会读到「正在从仓库读取内容…」
+     （2026-09-23 全量回归实测翻车；等不到就超时判红，不掩盖真失败） */
+  await page.waitForFunction(
+    () => /回滚(可用|不可用)/.test(document.getElementById('view').textContent),
+    { timeout: 15000 }).catch(() => {});
   s = await state();
   check('T9 业务员看到「回滚不可用」', /回滚不可用/.test(s.view), s.view.slice(0, 120));
   await page.click('#logout'); await new Promise(r => setTimeout(r, 150));
   S.member = 'boss';
   await login();
   await page.evaluate(() => { location.hash = '#/releases'; });
-  await new Promise(r => setTimeout(r, 250));
+  /* 等「回滚可用/不可用」真的渲染出来再断言 —— 固定 sleep 会读到「正在从仓库读取内容…」
+     （2026-09-23 全量回归实测翻车；等不到就超时判红，不掩盖真失败） */
+  await page.waitForFunction(
+    () => /回滚(可用|不可用)/.test(document.getElementById('view').textContent),
+    { timeout: 15000 }).catch(() => {});
   s = await state();
   check('T9 boss 看到「回滚可用」', /回滚可用/.test(s.view), s.view.slice(0, 120));
   check('T9 boss 顶栏角色正确', s.role === 'role: boss', s.role);

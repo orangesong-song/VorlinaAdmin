@@ -217,6 +217,8 @@
   <div class="ed-panel">
     <div class="ed-head">
       <span class="t" id="edTitle">编辑</span>
+      <!-- vadmin 版本戳：每次前端补丁必须同步改这里（用户截图带它 = 一眼分清旧缓存/新 bug） -->
+      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-019</span>
       <button class="btn ghost sm" id="edClose">关闭</button>
       <button class="btn gold sm" id="edSave">保存到草稿</button>
     </div>
@@ -1308,7 +1310,11 @@ async function mediaUploadFiles(files){
       } else {
         failed.push((f.name || '(未命名)') + '（' + ((j && j.error) || 'HTTP ' + res.status) + '）');
       }
-    } catch(e){ failed.push((f.name || '(未命名)') + '（网络错误）') }
+    } catch(e){
+      /* vadmin-019b：预检被拦时浏览器只说 Failed to fetch，运营看不出是后端没放行方法 */
+      const net = /Failed to fetch|NetworkError|Load failed/i.test(String(e && e.message || e));
+      failed.push((f.name || '(未命名)') + '（网络错误' + (net ? '：请求根本没发出去 —— 多为 Worker 未放行该请求方法（重贴后端代码）或网络不通' : '') + '）');
+    }
   }
   await mediaLoad();
   MEDIA.busy = false;
@@ -1521,10 +1527,13 @@ function edProductHTML(){
   const heroOpts = usable.map(fn =>
     '<option value="' + escAttr(fn) + '"' + (fn === imgs.hero ? ' selected' : '') + '>' + esc(fn) + '</option>').join('');
   const imgBody = '<label class="ed-field"><span class="ed-k">主图 · 从本型号图库里选</span>'
-    + '<select class="ed-in" data-ed="' + escAttr(JSON.stringify(base.concat(['images','hero']))) + '">'
-    + (heroOpts || '<option value="">（画廊为空）</option>') + '</select></label>'
+    + '<span class="ed-pickrow"><select class="ed-in" data-ed="' + escAttr(JSON.stringify(base.concat(['images','hero']))) + '">'
+    + (heroOpts || '<option value="">（画廊为空）</option>') + '</select>'
+    + '<button type="button" class="btn ghost sm" data-pick="' + escAttr(JSON.stringify(base.concat(['images','hero']))) + '">选图</button></span></label>'
     + '<div class="edsec-note">缩略图取自 imagery 图库；点「设为主图」立即切换（仍需保存草稿）。</div>'
     + edHeroStrip(imgs)
+    + '<div class="edsec-note">图库里没有想要的图？点下面按钮，弹层里「上传新图」，传完点它就追加进画廊（保存草稿后发布生效）。</div>'
+    + '<div style="margin:10px 0"><button type="button" class="btn ghost sm" data-pick="null">＋ 上传新图 / 从图库追加</button></div>'
     + edNodeHTML(base.concat(['images','usable']), usable, '画廊图片（文件名列表）',
                  (S.sub && S.sub.images) ? S.sub.images : null, 'usable');
   return edSec('① 基础信息', '', basics)
@@ -1821,6 +1830,15 @@ document.addEventListener('click', e => {
   const pickItem = e.target.closest('[data-pickitem]');
   if (pickItem && PICK.path){
     edSet(ED.doc, PICK.path, pickItem.dataset.pickitem);
+    closePick(); edRender(); return;
+  }
+  if (pickItem && PICK.path === null && ED && ED.path === 'data/products.json'){
+    /* vadmin-019：无目标格的上传/选图 —— 点图直接追加进本型号画廊；画廊原本为空就顺带设为主图 */
+    const p0 = edGet(ED.doc, ED.sub) || {};
+    if (!p0.images) p0.images = { hero: '', usable: [] };
+    if (!Array.isArray(p0.images.usable)) p0.images.usable = [];
+    if (p0.images.usable.indexOf(pickItem.dataset.pickitem) < 0) p0.images.usable.push(pickItem.dataset.pickitem);
+    if (!p0.images.hero) p0.images.hero = pickItem.dataset.pickitem;
     closePick(); edRender(); return;
   }
   if (!ED) return;
