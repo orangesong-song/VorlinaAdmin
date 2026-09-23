@@ -32,6 +32,13 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # vorlina-admin/
 SITE = os.path.normpath(os.path.join(HERE, '..', 'vorlina-new'))      # 官网真源
 OVERLAY = os.path.join(HERE, '.local-drafts')                         # 本地「cms 分支」
+MEDIA_DIR = os.path.join(OVERLAY, 'media')                            # 本地「R2 桶」
+MEDIA_TYPES = {
+    'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png',
+    'image/avif': 'avif', 'image/gif': 'gif', 'image/svg+xml': 'svg',
+    'application/pdf': 'pdf',
+}
+MEDIA_MAX = 8 * 1024 * 1024
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8778
 
 # ── 白名单：后台允许读写的仓库内 JSON（相对官网根目录）──────────
@@ -48,6 +55,63 @@ ALLOWED = [
     'support', 'contact', 'terms', 'privacy', 'sitemap',
 ]]
 
+
+def media_safe_name(raw: str) -> str:
+    """与 Worker mediaSafeName 同规则：挡路径穿越与危险字符，保留中文。"""
+    import re
+    n = str(raw or '').strip().replace('/', '-').replace('\\', '-')
+    n = re.sub(r'[:*?"<>|\x00-\x1f]+', '', n)
+    n = re.sub(r'\.\.+', '.', n)
+    i = n.rfind('.')
+    stem = n[:i] if i > 0 else n
+    ext = n[i + 1:].lower() if i > 0 else ''
+    ext = re.sub(r'[^a-z0-9]', '', ext)
+    stem = re.sub(r'^[-\s]+|[-\s]+$', '', stem.lstrip('.'))
+    if not stem:
+        stem = 'file'
+    return stem[:80] + ('.' + ext if ext else '')
+
+
+def media_parse_multipart(raw: bytes, ctype: str):
+    """够用就好：只取 name=file 的那一段（后台上传只有一个文件字段）。"""
+    b = None
+    for part in ctype.split(';'):
+        part = part.strip()
+        if part.lower().startswith('boundary='):
+            b = part[len('boundary='):].strip('"')
+    if not b:
+        return None
+    sep = ('--' + b).encode('latin-1')
+    chunks = raw.split(sep)
+    for ch in chunks:
+        if b'name="file"' not in ch:
+            continue
+        head, _, body = ch.partition(b'\r\n\r\n')
+        body = body.rstrip(b'\r\n-')
+        fname, ftype = '', 'application/octet-stream'
+        for line in head.split(b'\r\n'):
+            low = line.lower()
+            if b'filename=' in low:
+                fname = line.split(b'filename=')[1].strip(b'"').decode('utf-8', 'replace')
+            if low.startswith(b'content-type:'):
+                ftype = line.split(b':', 1)[1].strip().decode('latin-1')
+        return {'filename': fname, 'type': ftype.lower(), 'body': body}
+    return None
+
+
+# ── 媒体库（与 Worker /media/* 同形）────────────────────────────────
+def _media_items():
+    os.makedirs(MEDIA_DIR, exist_ok=True)
+    out = []
+    for n in os.listdir(MEDIA_DIR):
+        if n == '.trash':
+            continue
+        p = os.path.join(MEDIA_DIR, n)
+        if not os.path.isfile(p):
+            continue
+        out.append({'key': 'img/' + n, 'name': n, 'size': os.path.getsize(p),
+                    'uploaded': '', 'url': '/media/file/img/' + n})
+    return sorted(out, key=lambda x: x['name'])
 
 def sha_of(data: bytes) -> str:
     return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
@@ -116,12 +180,18 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, file_obj(rel, data))
         if u.path == '/commits':
             return self.do_GET_commits()
+        if u.path == '/media/list':
+            return self.do_GET_media_list()
+        if u.path.startswith('/media/file/'):
+            return self.do_GET_media_file(u.path[len('/media/file/'):])
         if u.path == '/':
             self.path = '/index.html'
         return super().do_GET()
 
     def do_POST(self):
         u = urlparse(self.path)
+        if u.path == '/media/upload':
+            return self.do_POST_media_upload()
         if u.path != '/changes':
             return self._json(404, {'message': 'no route'})
         n = int(self.headers.get('Content-Length') or 0)
@@ -147,6 +217,75 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(200, {'ok': True, 'commits': [
             {'sha': 'local000', 'date': '', 'message': '本地开发桩（无提交历史）', 'author': 'serve-local'}
         ]})
+
+    def do_DELETE(self):
+        u = urlparse(self.path)
+        if not u.path.startswith('/media/file/'):
+            return self._json(404, {'message': 'no route'})
+        name = os.path.basename(u.path[len('/media/file/'):])
+        p = os.path.join(MEDIA_DIR, name)
+        if os.path.isfile(p):
+            # ⚠️ 不用 os.remove：本机（NAS 卷 + 系统安全机制）会拦住删除并抛错。
+            #    桩只是本地替身，语义等价地移进 .trash/ 即可（Worker 端是真 R2 delete）。
+            trash = os.path.join(MEDIA_DIR, '.trash')
+            os.makedirs(trash, exist_ok=True)
+            os.replace(p, os.path.join(trash, name))
+            return self._json(200, {'ok': True, 'deleted': 'img/' + name})
+        return self._json(404, {'ok': False, 'error': 'not_found'})
+
+    # ── 媒体库（与 Worker /media/* 同形）──────────────────────────
+    def do_GET_media_list(self):
+        return self._json(200, {'ok': True, 'items': _media_items()})
+
+    def do_GET_media_file(self, rel):
+        name = os.path.basename(rel)
+        p = os.path.join(MEDIA_DIR, name)
+        if not os.path.isfile(p):
+            try:                      # 回源线上官网（仓库已有的图）—— 与 Worker 行为一致
+                import urllib.request
+                req = urllib.request.Request('https://vorlina.net/assets/img/' + name,
+                                             headers={'User-Agent': 'vorlina-admin-local'})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    data = r.read()
+                    ctype = r.headers.get('Content-Type', 'application/octet-stream')
+            except Exception:
+                return self._json(404, {'ok': False, 'error': 'not_found', 'key': rel})
+        else:
+            with open(p, 'rb') as f:
+                data = f.read()
+            ext = name.rsplit('.', 1)[-1].lower()
+            ctype = {'webp': 'image/webp', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                     'png': 'image/png', 'gif': 'image/gif', 'svg': 'image/svg+xml',
+                     'pdf': 'application/pdf'}.get(ext, 'application/octet-stream')
+        self.send_response(200)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'public, max-age=3600')
+        self._cors()
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_POST_media_upload(self):
+        n = int(self.headers.get('Content-Length') or 0)
+        raw = self.rfile.read(n) if n else b''
+        part = media_parse_multipart(raw, self.headers.get('Content-Type') or '')
+        if not part:
+            return self._json(400, {'ok': False, 'error': 'bad_form'})
+        if part['type'] not in MEDIA_TYPES:
+            return self._json(415, {'ok': False, 'error': 'bad_type', 'type': part['type'],
+                                    'allow': list(MEDIA_TYPES)})
+        if len(part['body']) > MEDIA_MAX:
+            return self._json(413, {'ok': False, 'error': 'too_large',
+                                    'size': len(part['body']), 'max': MEDIA_MAX})
+        name = media_safe_name(part['filename'] or 'file')
+        os.makedirs(MEDIA_DIR, exist_ok=True)
+        with open(os.path.join(MEDIA_DIR, name), 'wb') as f:
+            f.write(part['body'])
+        return self._json(200, {'ok': True, 'name': name, 'key': 'img/' + name,
+                                'size': len(part['body']), 'type': part['type'],
+                                'url': '/media/file/img/' + name,
+                                'gh': {'ok': True, 'path': 'assets/img/' + name,
+                                       'overwritten': False, 'note': '本地桩：不同步写仓库'}})
 
     def do_PUT(self):
         u = urlparse(self.path)
@@ -198,3 +337,8 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+

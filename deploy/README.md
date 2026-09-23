@@ -117,3 +117,23 @@ publish.yml 在 Actions 里 `checkout` 的是 VorlinaSite，`guards.py` 不在�
 - [ ] 点发布 → Actions 跑通 5 闸门 → main 更新 → vorlina.net 出新版本（带 `?v=`）
 - [ ] 回滚按钮非 boss 角色点被拒（403 role_denied）
 - [ ] `/enquiry`、`/notify` 旧链路未被破坏
+
+## 七、媒体库直传（vadmin-013 · 2026-09-23）
+
+后台「媒体库」页已支持运营上传图片 / 目录 PDF。**代码已就位，上线前需在 Cloudflare 补一步 R2 绑定**：
+
+1. dash.cloudflare.com → **R2 Object Storage** → Create bucket → 名字建议 `vorlina-media`（免费额度 10GB 存储，够用很久）。
+2. Workers & Pages → `vorlina-inquiry-notify` → **Settings → Bindings → Add** → 选 **R2 bucket**：
+   - Variable name：**`MEDIA`**（必须一字不差，代码读的是 `env.MEDIA`）
+   - Bucket：`vorlina-media`
+3. 重新部署 Worker（粘贴新版 `deploy/worker.merged.js`，它已含 `/media/*` 四条路由）。
+4. 验证：后台 → 媒体库 → 不再出现「Worker 还没绑定 R2 桶」提示，上传一张测试图 → 网格出现卡片。
+
+**存储策略（双写，不换真源）**：
+- 上传的图 ① 存 R2（后台预览 + 备份）② **同步写进 GitHub `cms` 分支的 `assets/img/<文件名>`**。
+- 图进的是 cms 分支 = 和内容草稿同一条闸门，**上传不直接上线**，走「变更清单 → 发布」才进 main。
+- 官网模板继续引用 `/assets/img/...`，**构建与模板零改动**。
+- `GET /media/file/img/<名>` 免鉴权直读（`<img>` 请求带不了 Authorization）：R2 命中直出，miss 则回源 vorlina.net —— 所以后台所有缩略图都能立刻看到刚上传的图。
+- 删除只删 R2（后台媒体库移除），**不同步删仓库** —— 删官网真源风险高，要走发布流程由人确认。
+
+**限制**：单文件 ≤ 8MB；类型限 webp / jpg / png / avif / gif / svg / pdf；本地开发桩 `serve-local.py` 已实现同形 `/media/*`（落 `.local-drafts/media/`）。
