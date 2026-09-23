@@ -58,9 +58,11 @@
   .ed-head{display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--line)}
   .ed-head .t{font-family:var(--serif);font-size:18px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ed-body{overflow:auto;padding:16px 20px;flex:1}
-  .ed-obj{border:1px solid var(--line);padding:8px 14px 10px;margin:8px 0}
+  /* 内层结构不再画框：每画一层框就多一层噪音（运营反馈「一块叠一块」）—— 改左侧引导线 */
+  .ed-obj{border:0;border-left:2px solid rgba(21,22,26,.13);padding:2px 0 2px 12px;margin:6px 0;background:transparent}
   .ed-obj-h,.ed-arr-h,.ed-item-h{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:8px 0 2px}
-  .ed-item{border:1px solid var(--line);padding:6px 12px 8px;margin:8px 0;background:var(--card)}
+  /* 数组项保留边界感（它是可增删/调序的单位），但压淡、收紧 */
+  .ed-item{border:1px solid rgba(21,22,26,.13);padding:3px 11px 6px;margin:6px 0;background:rgba(255,255,255,.72)}
   .ed-ops{float:right;display:flex;gap:6px}
   .ed-ops .btn{font-size:11px;padding:2px 8px}
   .ed-ops .btn.risk{color:var(--warn)}
@@ -95,6 +97,15 @@
   .edsec-h{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
   .edsec-h .sec-tog{margin-left:auto;font-size:10px;color:var(--muted);letter-spacing:.08em}
   .edsec.folded .edsec-b{display:none}
+  /* 简单键值对一行排：面包屑项 / SEO meta / 规格参数这类「全叶子对象」不再套子框 */
+  .ed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:0 18px}
+  .ed-grid .ed-field{margin:7px 0}
+  /* 数组的数组行模式：一行多项横排（面包屑 = 行 [名称, 链接]） */
+  .ed-inline{display:flex;gap:12px}
+  .ed-inline .ed-field{flex:1;margin:4px 0 6px}
+  /* 分区头是唯一的「实框」，加重一点把层级压回来 */
+  .edsec{margin:12px 0}
+  .edsec-h{background:rgba(21,22,26,.055);font-size:12px;letter-spacing:.08em}
   .ccard{border:1px solid var(--line);background:#fff;display:flex;flex-direction:column}
   .ccard-thumb{height:104px;background:#F5F3EF;display:flex;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid var(--line)}
   .ccard-thumb img{max-width:100%;max-height:100%;object-fit:contain;display:block}
@@ -1009,7 +1020,7 @@ function edLeafHTML(path, v){
     return '<select class="ed-in" data-ed="' + p + '" data-edtype="bool">'
       + '<option value="true"' + (v ? ' selected' : '') + '>true</option>'
       + '<option value="false"' + (!v ? ' selected' : '') + '>false</option></select>';
-  return '<span class="mono dim">null · 不动</span>';
+  return '<span class="mono dim">（空值 · 保持不动即可）</span>';
 }
 /* 字段白名单（vadmin-008）：fields=人该改的文案（中文标签）；ro=结构键只读；hide/deny=系统识别字段整段隐藏。
    `_` 前缀键一律隐藏。没有 schema 的文件保持通用渲染，但 `_` 键同样隐藏。 */
@@ -1050,7 +1061,9 @@ const ED_LABELS = {
   training:'培训', consumables:'耗材', beforeYouWrite:'写信前请读', disclaimer:'免责声明', form:'表单文案',
   enquirySection:'询盘区说明', channels:'联系方式', whatToInclude:'请附上这些信息', visiting:'来访',
   band:'通栏', cols:'站点地图列', oemSteps:'定制步骤', proNotice:'专业买家提示', shots:'现场照片',
-  name:'姓名', company:'公司', email:'邮箱', country:'国家', phone:'电话', message:'留言'
+  name:'姓名', company:'公司', email:'邮箱', country:'国家', phone:'电话', message:'留言',
+  /* 行模式（数组的数组）里的格子：crumb 是 [文字, 链接]、表格行是 [项目, 说明] —— 用中性标签两边都不撒谎 */
+  '0':'第 1 格', '1':'第 2 格'
 };
 /* 分区脚注：告诉运营这一格改了会影响什么 */
 const ED_SEC_NOTE = {
@@ -1241,7 +1254,8 @@ function edSectionsHTML(path, obj, sch, asSec){
     if (R[k]){ roRows += edRoRow(F[k] || R[k], obj[k]); continue }
     const lab = F[k] || ED_LABELS[k] || k;
     const subSch = (S.sub && S.sub[k]) ? S.sub[k] : null;
-    const inner = edNodeHTML(path.concat(k), obj[k], lab, subSch, k);
+    const isObj = obj[k] && typeof obj[k] === 'object' && !Array.isArray(obj[k]);
+    const inner = edNodeHTML(path.concat(k), obj[k], lab, subSch, k, /*bare=*/ asSec && isObj);
     secs += asSec ? edSec(lab, ED_SEC_NOTE[k] || '', inner) : inner;
   }
   let out = '';
@@ -1317,11 +1331,35 @@ function edKind(){
   if (ED.path === 'build/data/insights.json' && ED.sub[0] === 'notes') return 'note';
   return 'generic';
 }
-function edNodeHTML(path, v, keyLabel, sch, origKey){
+/* 全叶子对象：键对应的值全是字符串 / 数字 / 布尔 / null，且键数在 10 个以内。
+   这类对象（面包屑的 {0,1}、SEO meta、规格参数）再套一层框纯属噪音 —— 直接排网格。 */
+function edIsLeafObj(v){
+  const ks = Object.keys(v);
+  if (!ks.length || ks.length > 10) return false;
+  return ks.every(k => {
+    const x = v[k];
+    return x === null || typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean';
+  });
+}
+function edNodeHTML(path, v, keyLabel, sch, origKey, bare){
   if (v && typeof v === 'object' && !Array.isArray(v)){
     const S = sch || {};
     const hide = S.hide || [], deny = S.deny || [], F = S.fields || {}, R = S.ro || {};
     let hiddenN = 0;
+    /* ── 紧凑分支：全叶子对象 —— 同样的 hide / deny / ro 判据，只换渲染容器 ── */
+    if (edIsLeafObj(v)){
+      const cells = [];
+      for (const k of Object.keys(v)){
+        if (hide.indexOf(k) >= 0 || deny.indexOf(k) >= 0 || k.charAt(0) === '_'){ hiddenN++; continue }
+        const lab = F[k] || ED_LABELS[k] || k;
+        if (R[k]){ cells.push(edRoRow(F[k] || R[k], v[k])); continue }
+        cells.push('<label class="ed-field"><span class="ed-k">' + esc(lab) + edKeyTag(lab, k) + '</span>'
+          + edLeafHTML(path.concat(k), v[k]) + '</label>');
+      }
+      return '<div class="ed-grid">' + cells.join('') + '</div>'
+        + (hiddenN ? '<div class="ed-ro">🔒 已隐藏 ' + hiddenN + ' 个内部字段'
+            + (S.hideLabel ? '（' + esc(S.hideLabel) + '）' : '') + ' —— 系统识别用，不在页面编辑。</div>' : '');
+    }
     const kids = Object.keys(v).map(k => {
       if (hide.indexOf(k) >= 0 || deny.indexOf(k) >= 0 || k.charAt(0) === '_'){ hiddenN++; return ''; }
       if (R[k])
@@ -1330,10 +1368,33 @@ function edNodeHTML(path, v, keyLabel, sch, origKey){
     }).join('')
       + (S.hasImagePreview && v.images ? edImagePreviewsHTML(v.images) : '')
       + (hiddenN ? '<div class="ed-ro">🔒 已隐藏 ' + hiddenN + ' 个内部字段' + (S.hideLabel ? '（' + esc(S.hideLabel) + '）' : '') + '—— 系统识别用，不在页面编辑。</div>' : '');
-    return '<div class="ed-obj"><div class="ed-obj-h">' + esc(keyLabel) + edKeyTag(keyLabel, origKey) + '</div>' + kids + '</div>';
+    /* bare：外层分区卡片已经标过这个名字了，内层不再重复一遍标题（只留内容） */
+    return bare ? kids
+      : '<div class="ed-obj"><div class="ed-obj-h">' + esc(keyLabel) + edKeyTag(keyLabel, origKey) + '</div>' + kids + '</div>';
   }
   if (Array.isArray(v)){
     const lp = escAttr(JSON.stringify(path));
+    /* ── 行模式：数组的数组且内层全是叶子（面包屑 / 表格式数据）──
+       一层框 + 每行横排，不再「项 → 数组 → 项」三层套娃；
+       路径 data-ed 仍是 [.., i, j]，编辑与增删调序逻辑与通用数组完全一致。 */
+    if (v.length && v.every(x => Array.isArray(x))
+        && v.every(inner => inner.every(x => x === null || typeof x !== 'object'))){
+      const opsRow = i => '<span class="ed-ops">'
+        + '<button class="btn ghost" data-edop="up" data-edlist="' + lp + '" data-edi="' + i + '" title="上移">↑</button>'
+        + '<button class="btn ghost" data-edop="down" data-edlist="' + lp + '" data-edi="' + i + '" title="下移">↓</button>'
+        + '<button class="btn ghost" data-edop="dup" data-edlist="' + lp + '" data-edi="' + i + '">复制</button>'
+        + '<button class="btn ghost risk" data-edop="del" data-edlist="' + lp + '" data-edi="' + i + '">删</button></span>';
+      const rows = v.map((inner, i) =>
+        '<div class="ed-item"><div class="ed-item-h">行 ' + (i + 1) + opsRow(i) + '</div><div class="ed-inline">'
+        + inner.map((x, j) => '<label class="ed-field"><span class="ed-k">'
+          + esc(ED_LABELS[String(j)] || String(j)) + '</span>'
+          + edLeafHTML(path.concat(i, j), x) + '</label>').join('')
+        + '</div></div>').join('');
+      const addRow = '<button class="btn ghost sm" data-edop="add" data-edlist="' + lp + '">＋插入一行</button>';
+      return '<div class="ed-obj"><div class="ed-arr-h">' + esc(keyLabel) + edKeyTag(keyLabel, origKey)
+        + ' · ' + v.length + ' 行　' + addRow + '</div>'
+        + (rows || '<div class="ed-ro">（空列表 —— 点「插入一行」新增）</div>') + '</div>';
+    }
     const items = v.map((it, i) => {
       const ops = '<span class="ed-ops">'
         + '<button class="btn ghost" data-edop="up" data-edlist="' + lp + '" data-edi="' + i + '" title="上移">↑</button>'
