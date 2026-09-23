@@ -13,6 +13,12 @@
  *   ③ 「内容读不到」不能表现为白屏或假装成功 —— 必须在总览上报出来（源自本站翻过三次的车）。
  */
 const puppeteer = require('puppeteer-core');
+const fs = require('fs');
+const path = require('path');
+
+/* 版本串现算：官网每次发版都会升，写死在测试里只会制造假红（2026-09-23 实测如此） */
+const SITE = path.resolve(__dirname, '..', '..', 'vorlina-new');
+const VERSION = fs.readFileSync(path.join(SITE, 'build', 'version.txt'), 'utf8').trim();
 
 const SB = 'https://jjmaularjtmhptbfnovd.supabase.co';
 const ORIGIN = 'http://127.0.0.1:8778';
@@ -20,9 +26,9 @@ const URL_PAGE = ORIGIN + '/index.html';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 /* 期望值取自官网真源（vorlina-new/），不是猜的：
-   products.json 16 款 / 6 分类 · insights.json 5 篇 · pages 9 个 · home.json FAQ 10 条 · version 20260920a */
+   products.json 16 款 / 6 分类 · insights.json 5 篇 · pages 9 个 · home.json FAQ 10 条 · version 现算（version.txt） */
 const EXPECT = {
-  version: '20260920a',
+  version: VERSION,
   /* 后台会读的内容文件数 = 6 份 + 9 个栏目页 = 15。
      ⚠️ 别写成 16 —— 那是产品款数，不是文件数。两个数混用是本站明令禁止的（D99 类错误）。 */
   filesTotal: 15,
@@ -99,6 +105,8 @@ function mockSb(page, S) {
   const S = { inquiries: 'ok' };
   mockSb(page, S);
 
+  /* ⚠️ CONTENT_BASE 默认是生产 Worker —— 本地测试不指回桩就会 401（内容 0/15） */
+  await page.evaluateOnNewDocument(o => { try { localStorage.setItem('va_content_base', o) } catch(e){} }, ORIGIN);
   await page.goto(URL_PAGE, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => {
     document.getElementById('email').value = 'ops@vorlina.net';
@@ -114,6 +122,7 @@ function mockSb(page, S) {
     return page.evaluate(() => ({
       view: document.getElementById('view').textContent,
       rows: document.querySelectorAll('#view table.tbl tbody tr').length,
+      cards: document.querySelectorAll('#view .pcard').length,
       firstRows: (function(){ const t = document.querySelector('#view table.tbl tbody'); return t ? t.children.length : 0 })(),
       tableCount: document.querySelectorAll('#view table.tbl').length,
       nav: (document.querySelector('#railNav [aria-current="page"]') || {}).textContent || '',
@@ -132,14 +141,17 @@ function mockSb(page, S) {
   /* ── T3/T4 产品与分类：必须出现真实 SKU 与真实分类短名 ── */
   section('产品与分类');
   const pr = await go('products');
-  check('T3 型号表 16 行（本页两张表，只数第一张）',
-    pr.firstRows === EXPECT.products && pr.tableCount === 2,
-    '首表 ' + pr.firstRows + ' 行 · 共 ' + pr.tableCount + ' 张表');
+  /* vadmin-010：型号区已由表格改为卡片流（缩略图 + 状态点），本页只剩分类那一张表。 */
+  check('T3 型号卡片 16 张（本页剩 1 张表：分类）',
+    pr.cards === EXPECT.products && pr.tableCount === 1,
+    '卡片 ' + pr.cards + ' 张 · 表 ' + pr.tableCount + ' 张');
+  check('T3b 卡片带缩略图元素（图库按 sku 匹配）',
+    await page.evaluate(() => document.querySelectorAll('#view .pcard-thumb img').length) === EXPECT.products);
   check('T4 含真实 SKU ' + EXPECT.sku, pr.view.includes(EXPECT.sku));
   check('T5 含真实分类短名 ' + EXPECT.catShort, pr.view.includes(EXPECT.catShort));
   const catSum = await page.evaluate(() => {
-    const t = [...document.querySelectorAll('#view table.tbl')][1];
-    return t ? [...t.querySelectorAll('tbody tr')].reduce((s, tr) => s + Number(tr.children[3].textContent || 0), 0) : -1;
+    const t = [...document.querySelectorAll('#view table.tbl')][0];   // vadmin-010：0 = 分类表
+    return t ? [...t.querySelectorAll('tbody tr')].reduce((s, tr) => s + Number((tr.children[3] || {}).textContent || 0), 0) : -1;
   });
   check('T6 分类表在架款数合计 = 16（派生值正确）', catSum === EXPECT.products, '实际 ' + catSum);
 
