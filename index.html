@@ -52,6 +52,21 @@
   .pair .v{font-size:13.5px;color:var(--ink)}
 
   /* ── 通用编辑器 ─────────────────────────────────────────── */
+  .ed-pickrow{display:flex;gap:6px;align-items:center;width:100%}
+  .ed-pickrow .ed-in{flex:1;min-width:0}
+  .pick-mask{position:fixed;inset:0;background:rgba(21,22,26,.45);z-index:70}
+  .pick-panel{position:fixed;top:36px;bottom:36px;left:50%;transform:translateX(-50%);width:min(960px,94vw);
+    background:var(--paper);border:1px solid var(--ink);z-index:71;display:flex;flex-direction:column}
+  .pick-panel[hidden],.pick-mask[hidden]{display:none}
+  .pick-head{display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--line)}
+  .pick-head .t{font-family:var(--serif);font-size:17px;font-weight:600;flex:1}
+  .pick-body{overflow:auto;padding:16px 20px;flex:1}
+  .pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .pick-item{border:1px solid var(--line);background:#fff;padding:0 0 7px;cursor:pointer;text-align:left}
+  .pick-item img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#f2f0ec}
+  .pick-item .pn{font-family:var(--mono);font-size:11px;padding:6px 8px 0;word-break:break-all;color:var(--ink)}
+  .pick-item .pk{font-size:11px;color:var(--muted);padding:2px 8px 0}
+  .pick-item:hover{border-color:var(--gold)}
   .ed-mask{position:fixed;inset:0;background:rgba(21,22,26,.45);z-index:60}
   .ed-panel{position:fixed;top:20px;bottom:20px;left:50%;transform:translateX(-50%);width:min(880px,94vw);
     background:var(--paper);border:1px solid var(--ink);z-index:61;display:flex;flex-direction:column}
@@ -386,7 +401,12 @@ function strToB64(s){
   return btoa(bin);
 }
 async function contentFetch(url, opts){
-  const res = await fetch(url, Object.assign({ headers:{ Authorization:'Bearer ' + sbToken() } }, opts || {}));
+  /* ⚠️ 不能用 Object.assign({headers:A}, opts) —— opts.headers 会把 A 整个覆盖掉，
+     PUT（带 Content-Type）就丢了 Authorization → 401 missing_token（2026-09-23 线上实锤：读得到、存不了）。
+     headers 必须逐键合并。 */
+  const merged = Object.assign({}, opts || {});
+  merged.headers = Object.assign({ Authorization: 'Bearer ' + sbToken() }, (opts && opts.headers) || {});
+  const res = await fetch(url, merged);
   const txt = await res.text();
   let j = null; try { j = txt ? JSON.parse(txt) : null } catch(e){}
   if (!res.ok) throw new Error('HTTP ' + res.status + '：' + ((j && j.message) || txt || '无响应体'));
@@ -1073,14 +1093,25 @@ function edBlank(v){
   }
   return null;
 }
+/* 图片类字段判据：值长得像图片文件名，或键名语义是图。hero 已有下拉+设为主图，不重复给按钮。 */
+function looksImageField(path, v){
+  const k = String(path && path.length ? path[path.length - 1] : '');
+  if (k === 'hero' || /\.pdf$/i.test(String(v))) return false;
+  if (/\.(webp|jpe?g|png|avif|gif|svg)$/i.test(String(v))) return true;
+  return ['src','img','cardImage','image','logo','poster','cover','thumb','photo'].indexOf(k) >= 0;
+}
 function edLeafHTML(path, v){
   const p = escAttr(JSON.stringify(path));
   if (typeof v === 'string'){
+    const pickBtn = looksImageField(path, v)
+      ? '<button type="button" class="btn ghost sm" data-pick="' + p + '">选图</button>' : '';
     if (v.includes('\n') || v.length > 60){
       const rows = Math.min(14, v.split('\n').length + 2);
-      return '<textarea class="ed-in" data-ed="' + p + '" rows="' + rows + '">' + esc(v) + '</textarea>';
+      const ta = '<textarea class="ed-in" data-ed="' + p + '" rows="' + rows + '">' + esc(v) + '</textarea>';
+      return pickBtn ? '<span class="ed-pickrow">' + ta + pickBtn + '</span>' : ta;
     }
-    return '<input class="ed-in" data-ed="' + p + '" value="' + escAttr(v) + '">';
+    const inp = '<input class="ed-in" data-ed="' + p + '" value="' + escAttr(v) + '">';
+    return pickBtn ? '<span class="ed-pickrow">' + inp + pickBtn + '</span>' : inp;
   }
   if (typeof v === 'number')
     return '<input class="ed-in" data-ed="' + p + '" data-edtype="num" value="' + escAttr(String(v)) + '">';
@@ -1327,6 +1358,73 @@ function bindMedia(){
     } catch(e){ MEDIA.msg = '移除失败：' + (e && e.message || e); MEDIA.msgKind = 'gold' }
     await mediaLoad(); rerenderMedia();
   });
+}
+/* ── 选图弹层（vadmin-017）────────────────────────────────────────
+   运营不该「去媒体库复制文件名、回来再粘贴」—— 点「选图」直接看图点图；
+   图库里没有就当场上传（上传完自动出现在列表，点一下就填进格子）。 */
+const PICK = { path:null };
+function ensurePickDom(){
+  if (document.getElementById('pickMask')) return;
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="pick-mask" id="pickMask" hidden></div>'
+    + '<div class="pick-panel" id="pickPanel" hidden>'
+    + '<div class="pick-head"><span class="t">选择图片</span>'
+    + '<label class="btn ghost sm" style="cursor:pointer">上传新图<input type="file" id="pickFile" accept="image/*" multiple hidden></label>'
+    + '<button class="btn sm" id="pickClose">关闭</button></div>'
+    + '<div class="pick-body" id="pickBody"></div></div>');
+  document.getElementById('pickClose').onclick = closePick;
+  document.getElementById('pickMask').onclick = closePick;
+  document.getElementById('pickFile').onchange = async e => {
+    const fs = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!fs.length) return;
+    await mediaUploadFiles(fs);        /* 复用上传管线：R2 + cms 分支双写 */
+    renderPickGrid();
+  };
+}
+function openPick(pathStr){
+  if (!ED) return;
+  PICK.path = JSON.parse(pathStr);
+  ensurePickDom();
+  document.getElementById('pickMask').hidden = false;
+  document.getElementById('pickPanel').hidden = false;
+  document.getElementById('pickBody').innerHTML = '<p class="dim">加载图库中…</p>';
+  mediaLoad().then(renderPickGrid).catch(renderPickGrid);
+}
+function closePick(){
+  const m = document.getElementById('pickMask'), p = document.getElementById('pickPanel');
+  if (m) m.hidden = true;
+  if (p) p.hidden = true;
+  PICK.path = null;
+}
+function pickItems(){
+  const out = [], seen = new Set();
+  (MEDIA.items || []).forEach(it => {
+    const n = it.name || '';
+    if (!/\.(webp|jpe?g|png|avif|gif|svg)$/i.test(n) || seen.has(n)) return;
+    seen.add(n);
+    out.push({ name:n, url: CONTENT_BASE + '/media/file/img/' + encodeURIComponent(n), tag:'已上传' });
+  });
+  repoImageList().forEach(([src, url]) => {
+    const n = baseName(src);
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push({ name:n, url: imgSrc(src, url), tag:'仓库图' });
+  });
+  return out;
+}
+function renderPickGrid(){
+  const body = document.getElementById('pickBody');
+  if (!body) return;
+  const items = pickItems();
+  const note = MEDIA.error ? '<p class="dim">' + esc(MEDIA.error) + '</p>' : '';
+  body.innerHTML = note + (items.length
+    ? '<div class="pick-grid">' + items.map(it =>
+        '<button type="button" class="pick-item" data-pickitem="' + escAttr(it.name) + '" title="点击填入">'
+        + '<img src="' + escAttr(it.url) + '" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+        + '<div class="pn">' + esc(it.name) + '</div><div class="pk">' + it.tag + '</div></button>'
+      ).join('') + '</div>'
+    : '<p class="dim">图库是空的 —— 点左上角「上传新图」先传一张。</p>');
 }
 function edImgMap(){
   const out = {};
@@ -1712,6 +1810,13 @@ document.addEventListener('click', e => {
     if (a === 'publish') doPublish('publish');
     if (a === 'rollback') doPublish('rollback');
     return;
+  }
+  const pickBtn = e.target.closest('[data-pick]');
+  if (pickBtn){ openPick(pickBtn.dataset.pick); return }
+  const pickItem = e.target.closest('[data-pickitem]');
+  if (pickItem && PICK.path){
+    edSet(ED.doc, PICK.path, pickItem.dataset.pickitem);
+    closePick(); edRender(); return;
   }
   if (!ED) return;
   const heroBtn = e.target.closest('[data-hero]');
