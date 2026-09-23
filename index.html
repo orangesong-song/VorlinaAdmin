@@ -70,6 +70,13 @@
   .ed-in:focus{outline:none;border-color:var(--gold)}
   textarea.ed-in{resize:vertical;line-height:1.65}
   .ed-ro{font-family:var(--mono);font-size:11px;color:var(--muted);margin:6px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ed-imgs{margin:10px 0 4px;padding:10px;border:1px dashed var(--line);background:rgba(0,0,0,.02)}
+  .ed-imgs-h{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .ed-thumb-row{display:flex;flex-wrap:wrap;gap:8px}
+  .ed-thumb{width:84px;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:#fff;font-size:9px;text-align:center}
+  .ed-thumb.hero{outline:2px solid var(--gold);outline-offset:-1px}
+  .ed-thumb img{width:84px;height:64px;object-fit:cover;display:block;background:#eee}
+  .ed-thumb span{display:block;padding:3px 2px;word-break:break-all;color:var(--muted)}
   .ed-msg{padding:10px 20px;border-top:1px solid var(--line);min-height:40px;font-size:13px}
 </style>
 </head>
@@ -961,8 +968,16 @@ const ED_SCHEMA = {
       warranty: '质保（英文）', packages: '包装 · 实际交运纸箱一套', specs: '规格参数（参数名别改，只改值）'
     },
     ro: { sku: '型号', category: '所属分类' },
-    hide: ['nameEnStatus','categoryNote','note','status','certificationGroup','contraindication','copyRules','images'],
-    hideLabel: '英文备注 / 图片清单 / 合规规则等'
+    hide: ['nameEnStatus','categoryNote','note','status','certificationGroup','contraindication','copyRules'],
+    hideLabel: '英文备注 / 合规规则等',
+    hasImagePreview: true,
+    sub: {
+      images: {
+        fields: { hero: '主图（文件名，须与 imagery 图库一致）', usable: '画廊可用图（文件名列表，可增删 / 调序）' },
+        hide: ['lowRes','exclude'],
+        hideLabel: '低清变体 / 剔除清单（系统筛选用）'
+      }
+    }
   },
   'build/data/insights.json': {
     itemOf: 'notes',
@@ -988,6 +1003,26 @@ function edSchemaFor(path, sub){
   return (sub && sub.length) ? null : s;
 }
 const edKeyTag = (label, key) => (key && key !== label) ? ' <span class="mono dim">' + esc(key) + '</span>' : '';
+const IMG_BASE = 'https://vorlina.net';
+function edImgMap(){
+  const out = {};
+  const img = STORE.files['build/data/imagery.json'];
+  const sku = ED && ED.doc ? ED.doc.sku : null;
+  if (img && sku && img[sku] && img[sku].items) for (const it of img[sku].items) out[it.src] = it.url;
+  return out;
+}
+function edThumb(fn, map, hero){
+  const u = map[fn];
+  if (!u) return '<div class="ed-thumb' + (hero ? ' hero' : '') + '"><span class="mono dim">' + esc(fn) + '<br>（图库未匹配）</span></div>';
+  return '<div class="ed-thumb' + (hero ? ' hero' : '') + '"><img src="' + escAttr(IMG_BASE + u) + '" loading="lazy" onerror="this.style.display=\'none\'"><span class="mono">' + esc(fn) + '</span></div>';
+}
+function edImagePreviewsHTML(imagesObj){
+  const map = edImgMap();
+  const hero = imagesObj && imagesObj.hero ? edThumb(imagesObj.hero, map, true) : '';
+  const usables = (imagesObj && imagesObj.usable ? imagesObj.usable : []).map(fn => edThumb(fn, map, false)).join('');
+  return '<div class="ed-imgs"><div class="ed-imgs-h">当前图（缩略图取自 imagery 图库 · 改文件名须与图库一致）</div>'
+    + '<div class="ed-thumb-row">' + hero + usables + '</div></div>';
+}
 function edNodeHTML(path, v, keyLabel, sch, origKey){
   if (v && typeof v === 'object' && !Array.isArray(v)){
     const S = sch || {};
@@ -997,8 +1032,9 @@ function edNodeHTML(path, v, keyLabel, sch, origKey){
       if (hide.indexOf(k) >= 0 || deny.indexOf(k) >= 0 || k.charAt(0) === '_'){ hiddenN++; return ''; }
       if (R[k])
         return '<div class="ed-ro" title="结构键：改动会牵动页面链接与归组，只读">' + esc(F[k] || R[k]) + ' · <span class="mono">' + esc(String(v[k]).slice(0,60)) + '</span> · 只读</div>';
-      return edNodeHTML(path.concat(k), v[k], F[k] || k, null, k);
+      return edNodeHTML(path.concat(k), v[k], F[k] || k, (S.sub && S.sub[k]) ? S.sub[k] : null, k);
     }).join('')
+      + (S.hasImagePreview && v.images ? edImagePreviewsHTML(v.images) : '')
       + (hiddenN ? '<div class="ed-ro">🔒 已隐藏 ' + hiddenN + ' 个内部字段' + (S.hideLabel ? '（' + esc(S.hideLabel) + '）' : '') + '—— 系统识别用，不在页面编辑。</div>' : '');
     return '<div class="ed-obj"><div class="ed-obj-h">' + esc(keyLabel) + edKeyTag(keyLabel, origKey) + '</div>' + kids + '</div>';
   }
