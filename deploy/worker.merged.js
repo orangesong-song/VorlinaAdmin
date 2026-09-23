@@ -128,7 +128,11 @@ export default {
             webhook: !!env.WEBHOOK_SECRET,
             recipient: !!env.NOTIFY_TO,
             smtp: !!(env.SMTP_USER && env.SMTP_PASS),
-            content: !!env.GITHUB_TOKEN
+            content: !!env.GITHUB_TOKEN,
+            /* 媒体库依赖 R2 绑定；只有免鉴权的这条能验证「桶真的挂上了」，
+               /media/list 要登录，绑定失败时前端只能看到一句 vague 提示。
+               ⚠️ 别让健康报告漏项 —— 少了它就等于健康检查在说谎。 */
+            media: !!env.MEDIA
           }
         }, 200);
       }
