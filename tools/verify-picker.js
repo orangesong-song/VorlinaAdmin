@@ -336,7 +336,7 @@ function mockSb(page) {
     addBtn: !!document.querySelector('#edBody [data-pick="null"]'),
     usableN: (function () { try { return edGet(ED.doc, ED.sub.concat(['images','usable'])).length } catch (e) { return -1 } })(),
   }));
-  check('N1 编辑弹窗头带版本戳 vadmin-020（一眼分清旧缓存 / 新 bug）', n0.ver.indexOf('vadmin-020') >= 0, n0.ver.slice(0, 60));
+  check('N1 编辑弹窗头带版本戳 vadmin-021（一眼分清旧缓存 / 新 bug）', n0.ver.indexOf('vadmin-021') >= 0, n0.ver.slice(0, 60));
   check('N2 主图行有「选图」按钮', n0.heroPick);
   check('N3 分区有「上传新图 / 从图库追加」入口', n0.addBtn);
   await page.evaluate(() => document.querySelector('#edBody [data-pick="null"]').click());

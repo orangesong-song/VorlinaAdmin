@@ -218,7 +218,7 @@
     <div class="ed-head">
       <span class="t" id="edTitle">编辑</span>
       <!-- vadmin 版本戳：每次前端补丁必须同步改这里（用户截图带它 = 一眼分清旧缓存/新 bug） -->
-      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-020</span>
+      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-021</span>
       <button class="btn ghost sm" id="edClose">关闭</button>
       <button class="btn gold sm" id="edSave">保存到草稿</button>
     </div>
@@ -1496,7 +1496,11 @@ function edThumbUrl(fn, map){
 function edImgMap(){
   const out = {};
   const img = STORE.files['build/data/imagery.json'];
-  const sku = ED && ED.doc ? ED.doc.sku : null;
+  /* vadmin-021 修复：ED.doc 是整份 products.json 根文档，sku 在 products[i] 上 ——
+     旧代码读 ED.doc.sku 恒为 undefined ⇒ 映射永远为空 ⇒ 编辑弹窗所有缩略图「图库未匹配」。
+     改为取当前编辑节点（edGet(ED.doc, ED.sub)）的 sku；非产品编辑（如分类）无 sku 则照旧返回空。 */
+  const node = (ED && ED.doc && ED.sub && ED.sub.length) ? edGet(ED.doc, ED.sub) : null;
+  const sku = (node && typeof node === 'object') ? node.sku : null;
   if (img && sku && img[sku] && img[sku].items) for (const it of img[sku].items) out[it.src] = it.url;
   return out;
 }

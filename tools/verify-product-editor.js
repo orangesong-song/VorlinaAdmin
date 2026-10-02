@@ -152,6 +152,21 @@ function mockSb(page) {
     ed.heroOpts.length + ' 项 · 选中 ' + ed.heroVal);
   check('T14 缩略图条渲染（图库按 sku 匹配）', ed.thumbs === EXPECT.usableN, '实际 ' + ed.thumbs);
 
+  /* ── vadmin-021 回归断言：缩略图必须真的映射到 imagery url ──
+     背景：edImgMap 旧代码读 ED.doc.sku（根文档没有 sku）⇒ 映射恒空 ⇒
+     所有缩略图「图库未匹配」。旧断言只数 .ed-thumb 个数，匹配失败也绿 —— 漏了。 */
+  section('缩略图映射 · vadmin-021');
+  const th = await page.evaluate(() => ({
+    imgs: [...document.querySelectorAll('#edBody .ed-thumb img')].map(i => i.getAttribute('src')).filter(Boolean),
+    phN: document.querySelectorAll('#edBody .ed-thumb-ph').length,
+    phText: (document.querySelector('#edBody .ed-thumb-ph') || {}).textContent || '',
+  }));
+  check('T14b 缩略图有真实 src（imagery 命中）', th.imgs.length === EXPECT.usableN, 'img 数 ' + th.imgs.length + ' · ' + (th.imgs[0] || '').slice(0, 90));
+  check('T14c 无「图库未匹配」占位', th.phN === 0, '占位 ' + th.phN + ' · ' + th.phText.slice(0, 40));
+  check('T14d 缩略图 src 走官网域 imagery 路径',
+    th.imgs.length > 0 && th.imgs.every(u => u.indexOf('https://vorlina.net/assets/img/') === 0),
+    (th.imgs[0] || '（无）').slice(0, 90));
+
   /* ── 交互：设为主图 ── */
   section('交互 · 设为主图');
   const before = ed.heroVal;
