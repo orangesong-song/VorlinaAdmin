@@ -132,7 +132,7 @@ function mockSb(page) {
   const n0 = await page.evaluate(() => ({
     title: document.getElementById('edTitle').textContent,
     body: document.getElementById('edBody').innerText,
-    version: (document.body.innerText.match(/vadmin-0\d\d/) || [''])[0],
+    version: (document.body.innerText.match(/vadmin-\d{3}/) || [''])[0],
     blocks: document.querySelectorAll('#edBody [data-ed]').length,
   }));
   check('N1 编辑器已打开且标题含新文章名', n0.title.indexOf(NEW_TITLE) >= 0, n0.title.slice(0, 80));
@@ -140,7 +140,25 @@ function mockSb(page) {
     '正文片段: ' + n0.body.replace(/\s+/g, ' ').slice(0, 120));
   check('N3 slug 由标题生成（' + NEW_SLUG + '）', n0.body.indexOf(NEW_SLUG) >= 0);
   check('N4 状态默认 draft', /\bdraft\b/.test(n0.body));
-  check('N5 编辑器带版本戳 vadmin-022', n0.version.indexOf('vadmin-022') >= 0, n0.version.slice(0, 40));
+  check('N5 编辑器带版本戳（vadmin-NNN）', /^vadmin-\d{3}$/.test(n0.version), n0.version.slice(0, 40));
+
+  /* ── V · 版本号可见 + 与站点版本串区分（vadmin-023）── */
+  section('V · 后台版本号可见（侧栏 / 弹窗 / 总览三处一致）');
+  const v0 = await page.evaluate(() => {
+    const rail = document.querySelector('.rail-ver');
+    const dlg = document.getElementById('edVer');
+    return {
+      rail: rail ? rail.textContent.replace(/\s+/g, ' ').trim() : '',
+      dialog: dlg ? dlg.textContent.trim() : '',
+      siteVer: (typeof STORE !== 'undefined' && STORE.version) ? String(STORE.version) : '',
+    };
+  });
+  check('V1 侧栏底部常驻显示后台版本（不再只藏在弹窗里）', /vadmin-\d{3}/.test(v0.rail), v0.rail);
+  check('V2 弹窗头版本戳与侧栏同源一致', v0.dialog === (v0.rail.match(/vadmin-\d{3}/) || [''])[0],
+    '弹窗=' + v0.dialog + ' 侧栏=' + v0.rail);
+  check('V3 站点版本串（20xxxxxx）与后台版本（vadmin-）是两个不同前缀',
+    /^20\d{6}[a-z]$/.test(v0.siteVer) && /^vadmin-\d{3}$/.test(v0.dialog),
+    '站点=' + v0.siteVer + ' 后台=' + v0.dialog);
 
   /* ── S · 保存到草稿 ── */
   section('S · 保存（PUT payload 必须包含新文章）');
@@ -172,14 +190,108 @@ function mockSb(page) {
     out.push('  （payload 已存 /tmp/va-newnote-payload.json，供构建级验证）');
   }
 
+  /* ── B · 正文块平铺：不再套娃（vadmin-023）─────────────────
+     改动前：块 → 对象 → v → rows → 行 → 单元格，每层各画一个框；
+     断言口径不是"看起来好看"，而是**块内不允许再出现通用渲染器的框**，
+     以及加块 / 加行 / 加列 / 全部收起这些操作真的改了数据。 */
+  section('B · 正文块平铺（一个块一个框）');
+  const b0 = await page.evaluate(() => {
+    const body = document.getElementById('edBody');
+    const nb = [...body.querySelectorAll('.nb')];
+    return {
+      blocks: nb.length,
+      nested: body.querySelectorAll('.nb .ed-obj, .nb .ed-item, .nb .ed-obj-h, .nb .ed-item-h').length,
+      heads: nb.map(x => x.querySelector('.nb-h').innerText.replace(/\s+/g, ' ').trim()),
+      types: nb.map(x => x.querySelector('.nb-t').textContent.trim()),
+      hasPreview: nb.map(x => (x.querySelector('.nb-pv') || {}).textContent || ''),
+      addBtns: [...body.querySelectorAll('[data-nbadd]')].map(e => e.dataset.nbadd),
+      foldAll: !!body.querySelector('[data-nbfoldall="1"]'),
+      overflow: body.scrollWidth - body.clientWidth,
+    };
+  });
+  check('B1 正文块数量正确（新建文章默认 2 块）', b0.blocks === 2, '实际 ' + b0.blocks);
+  check('B2 块内嵌套框已清零（ed-obj / ed-item 一律不出现）', b0.nested === 0, '残留 ' + b0.nested);
+  check('B3 块标题行 = 块号 + 类型 + 摘要', /^块 1/.test(b0.heads[0]) && b0.types[0] === '标题' && b0.types[1] === '段落',
+    b0.heads.join(' | '));
+  b0.heads.forEach((h, i) => out.push('     ' + h));
+  check('B4 六种块类型都有加块入口', b0.addBtns.join(',') === 'h2,p,ul,ol,table,notice', b0.addBtns.join(','));
+  check('B5 有「全部收起」按钮（长文当目录看）', b0.foldAll);
+  check('B6 无横向溢出（1020px 弹窗内表格能并排）', b0.overflow <= 0, b0.overflow + 'px');
+
+  const bAdd = await page.evaluate(() => {
+    const body = document.getElementById('edBody');
+    body.querySelector('[data-nbadd="table"]').click();
+    const nb = [...body.querySelectorAll('.nb')];
+    const last = nb[nb.length - 1];
+    return {
+      n: nb.length,
+      type: last.querySelector('.nb-t').textContent.trim(),
+      rows: last.querySelectorAll('.nb-row:not(.nb-head)').length,
+      cols: last.querySelectorAll('.nb-head .nb-cell').length,
+      cellsAreTextarea: last.querySelectorAll('.nb-cells textarea').length,
+    };
+  });
+  check('B7 加「表格」块后块数 3、初始 2 行 2 列',
+    bAdd.n === 3 && bAdd.rows === 2 && bAdd.cols === 2, JSON.stringify(bAdd));
+  check('B8 单元格与表头都是可换行 textarea（长句不被截断）',
+    bAdd.cellsAreTextarea === bAdd.cols + bAdd.rows * bAdd.cols,
+    '实际 ' + bAdd.cellsAreTextarea + '（表头 ' + bAdd.cols + ' + 数据 ' + (bAdd.rows * bAdd.cols) + '）');
+
+  const bOp = await page.evaluate(() => {
+    const body = document.getElementById('edBody');
+    const last = () => { const nb = [...body.querySelectorAll('.nb')]; return nb[nb.length - 1] };
+    last().querySelector('[data-nbcol="add"]').click();
+    const cols1 = last().querySelectorAll('.nb-head .nb-cell').length;
+    const cols1rows = last().querySelectorAll('.nb-row:not(.nb-head) .nb-cell').length / 2;
+    last().querySelector('[data-nbrow="add"]').click();
+    const rows1 = last().querySelectorAll('.nb-row:not(.nb-head)').length;
+    return { cols1, cols1rows, rows1 };
+  });
+  check('B9 加列：表头 3 列，且每行同步加一格', bOp.cols1 === 3 && bOp.cols1rows === 3,
+    '列=' + bOp.cols1 + ' 每行列数=' + bOp.cols1rows);
+  check('B10 加行：3 行', bOp.rows1 === 3, '实际 ' + bOp.rows1);
+
+  const bFold = await page.evaluate(() => {
+    const body = document.getElementById('edBody');
+    body.querySelector('[data-nbfoldall="1"]').click();
+    const folded = body.querySelectorAll('.nb.folded').length;
+    const total = body.querySelectorAll('.nb').length;
+    const bodyHidden = getComputedStyle(body.querySelector('.nb .nb-b')).display === 'none';
+    body.querySelector('[data-nbfoldall="0"]').click();
+    const after = body.querySelectorAll('.nb.folded').length;
+    return { folded, total, bodyHidden, after };
+  });
+  check('B11 全部收起：每块都折叠且内容区真的隐藏',
+    bFold.folded === bFold.total && bFold.bodyHidden, JSON.stringify(bFold));
+  check('B12 全部展开：折叠状态清零', bFold.after === 0, '剩余 ' + bFold.after);
+
   await page.screenshot({ path: '/tmp/va-new-note.png' });
   check('Z1 无 JS 报错', jsErrors.length === 0, jsErrors.slice(0, 2).join(' | '));
 
-  /* ── 清场：还原 overlay ── */
+  /* ── 清场：还原 overlay ──
+     ⚠️ NAS（smbfs）上 unlink 可能失败，而 catch 吞掉会让 **11 篇的测试副本留在 overlay**，
+     下一次跑 verify-content 就会因为「文章 11 行」报红（2026-11-03 实际踩过）。
+     ⇒ 删不掉就**覆盖回真源**：文件还在，但内容与仓库一致，不再污染后续断言。 */
   try {
     if (hadOverlay) fs.copyFileSync(OV_BAK, OV), fs.unlinkSync(OV_BAK);
     else if (fs.existsSync(OV)) fs.unlinkSync(OV);
-  } catch (e) {}
+  } catch (e) {
+    try {
+      fs.mkdirSync(path.dirname(OV), { recursive: true });
+      fs.copyFileSync(path.join(SITE, 'build/data/insights.json'), OV);
+      out.push('  !! overlay 删除失败，已覆盖回真源（' + e.code + '）');
+    } catch (e2) {
+      out.push('  !! overlay 清理失败且无法覆盖：' + e2.code + ' —— 下次跑测试前请手工清 .local-drafts/');
+    }
+  }
+  if (fs.existsSync(OV)) {
+    try {
+      const left = JSON.parse(fs.readFileSync(OV, 'utf8'));
+      const same = left.notes && left.notes.length === INS.notes.length;
+      check('Z2 overlay 已清场（篇数回到 ' + INS.notes.length + '，不留测试文章）', same,
+        '残留 ' + (left.notes || []).length + ' 篇：' + ((left.notes || [])[left.notes.length - 1] || {}).slug);
+    } catch (e) { check('Z2 overlay 已清场', false, 'overlay 仍在且无法解析'); }
+  }
 
   await browser.close();
 

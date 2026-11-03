@@ -19,3 +19,6 @@ __pycache__/
 ._*
 *.log
 *.tmp
+
+# WorkBuddy 本地记忆目录（不入库）
+.workbuddy/

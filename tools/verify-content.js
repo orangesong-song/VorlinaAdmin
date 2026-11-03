@@ -119,9 +119,21 @@ function mockSb(page, S) {
   await page.waitForFunction(() => !document.getElementById('app').hidden && document.getElementById('view').textContent.length > 200, { timeout: 15000 });
 
   const go = async id => {
+    /* ⚠️ 旧条件只断言「不含 正在从仓库读取内容」——**空白页也不含** ⇒ 首次渲染还没出来就往下断言。
+       2026-11-03 T2 就是这么红的一次（detail 为空 = view 是空的）。
+       改成「真的渲染出内容」；桩冷启动读 15 份 JSON 可能慢，给 20s 并重试一次。 */
+    const rendered = () => page.waitForFunction(
+      () => { const v = document.getElementById('view'); return !!v && v.innerText.trim().length > 120 },
+      { timeout: 20000 });
     await page.evaluate(i => { location.hash = '#/' + i }, id);
-    await page.waitForFunction(() => !/正在从仓库读取内容/.test(document.getElementById('view').textContent), { timeout: 10000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 120));
+    try { await rendered() }
+    catch (e) {
+      await page.evaluate(() => { location.hash = '#/overview' });
+      await new Promise(r => setTimeout(r, 800));
+      await page.evaluate(i => { location.hash = '#/' + i }, id);
+      await rendered();
+    }
+    await new Promise(r => setTimeout(r, 150));
     return page.evaluate(() => ({
       view: document.getElementById('view').textContent,
       rows: document.querySelectorAll('#view table.tbl tbody tr').length,
@@ -130,6 +142,13 @@ function mockSb(page, S) {
       firstRows: (function(){ const t = document.querySelector('#view table.tbl tbody'); return t ? t.children.length : 0 })(),
       tableCount: document.querySelectorAll('#view table.tbl').length,
       nav: (document.querySelector('#railNav [aria-current="page"]') || {}).textContent || '',
+      /* 指标按 DOM 结构取 —— 不要在整页 textContent 里正则找数字：
+         「产品16」+「6 个分类」会连成 166，\b16\b 永远失配（2026-11-03 T2 就这样红了一次）。 */
+      metrics: [...document.querySelectorAll('#view .metric')].map(m => ({
+        k: (m.querySelector('.k') || {}).textContent || '',
+        v: (m.querySelector('.v') || {}).textContent || '',
+        d: (m.querySelector('.d') || {}).textContent || '',
+      })),
     }));
   };
 
@@ -139,8 +158,16 @@ function mockSb(page, S) {
   check('T1 来源标记显示全部读到（15 份 · ' + EXPECT.version + '）',
     ov.view.includes('真源 ' + EXPECT.filesTotal + '/' + EXPECT.filesTotal)
       && ov.view.includes('v' + EXPECT.version), ov.view.slice(0, 200));
-  check('T2 指标为现算（16 款 / 6 分类 / 5 篇 / 9 栏目页）',
-    /\b16\b/.test(ov.view) && ov.view.includes('6 个分类') && ov.view.includes('9'), ov.view.slice(0, 300));
+  const _m = {};
+  (ov.metrics || []).forEach(x => { _m[x.k.trim()] = x; });
+  const _pm = _m['产品'] || {}, _nm = _m['文章'] || {}, _gm = _m['栏目页 / 首页区块'] || {};
+  check('T2 指标为现算（' + EXPECT.products + ' 款 / ' + EXPECT.categories + ' 分类 / '
+      + EXPECT.notes + ' 篇 / ' + EXPECT.pages + ' 栏目页）',
+    _pm.v.trim() === String(EXPECT.products)
+      && _pm.d.trim() === String(EXPECT.categories) + ' 个分类'
+      && _nm.v.trim() === String(EXPECT.notes)
+      && _gm.v.trim() === String(EXPECT.pages),
+    JSON.stringify(ov.metrics));
 
   /* ── T3/T4 产品与分类：必须出现真实 SKU 与真实分类短名 ── */
   section('产品与分类');

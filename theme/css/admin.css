@@ -88,6 +88,8 @@ h1,h2,h3{margin:0;font-weight:600}
   background:var(--gold);color:#fff;padding:1px 5px;
 }
 .rail-foot{border-top:1px solid #2A2C33;padding:8px 0}
+.rail-ver{padding:8px 18px 4px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:#5B6470}
+.rail-ver .mono{color:#9C968E}
 
 /* ---------- 内容区 ---------- */
 .main{padding:26px 28px 64px;min-width:0}

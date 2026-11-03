@@ -68,7 +68,7 @@
   .pick-item .pk{font-size:11px;color:var(--muted);padding:2px 8px 0}
   .pick-item:hover{border-color:var(--gold)}
   .ed-mask{position:fixed;inset:0;background:rgba(21,22,26,.45);z-index:60}
-  .ed-panel{position:fixed;top:20px;bottom:20px;left:50%;transform:translateX(-50%);width:min(880px,94vw);
+  .ed-panel{position:fixed;top:20px;bottom:20px;left:50%;transform:translateX(-50%);width:min(1020px,96vw);
     background:var(--paper);border:1px solid var(--ink);z-index:61;display:flex;flex-direction:column}
   .ed-head{display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--line)}
   .ed-head .t{font-family:var(--serif);font-size:18px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -147,6 +147,43 @@
   .ed-thumb-ph{height:56px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted)}
   .ed-thumb .btn{margin:3px 2px 2px;width:100%}
   .ed-msg{padding:10px 20px;border-top:1px solid var(--line);min-height:40px;font-size:13px}
+  /* ── 文章正文块：一个块一个框，框内不再画框（vadmin-023）──────────
+     运营反馈「套娃太多、一块叠一块」：通用渲染每层对象都描一个框，
+     块 → 对象 → v → rows → 行 → 单元格能叠到 5 层。改为按类型平铺。 */
+  .nb-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:2px 0 10px}
+  .nb-addl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+  .nb-spacer{flex:1;min-width:8px}
+  .nb{border:1px solid rgba(21,22,26,.15);background:#fff;margin:7px 0}
+  .nb-h{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(21,22,26,.03);border-bottom:1px solid rgba(21,22,26,.08);cursor:pointer;user-select:none}
+  .nb.folded .nb-h{border-bottom:0}
+  .nb.folded .nb-b{display:none}
+  .nb-n{font-family:var(--mono);font-size:11px;color:var(--ink);flex:0 0 auto}
+  .nb-t{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid rgba(21,22,26,.18);padding:0 5px;line-height:15px;flex:0 0 auto}
+  .nb-pv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--muted)}
+  .nb-tog{font-family:var(--mono);font-size:11px;color:var(--muted);flex:0 0 auto}
+  .nb-h .ed-ops{float:none;margin-left:2px}
+  .nb-b{padding:6px 10px 10px}
+  .nb-b .ed-field{margin:6px 0}
+  .nb-text{font-size:13px;line-height:1.7}
+  .nb-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-top:1px dashed rgba(21,22,26,.11)}
+  .nb-row:first-child{border-top:0}
+  .nb-row.nb-head{border-top:0;border-bottom:1px solid rgba(21,22,26,.14);padding-bottom:6px;margin-bottom:2px}
+  .nb-rn{flex:0 0 34px;font-family:var(--mono);font-size:10px;color:var(--muted);padding-top:8px;text-align:right}
+  .nb-head .nb-rn{color:var(--ink)}
+  .nb-cells{display:flex;gap:6px;flex:1;min-width:0}
+  .nb-cells .ed-in{padding:5px 7px;font-size:12px;min-width:0;flex:1;line-height:1.5}
+  .nb-cell{resize:vertical}
+  .nb-cellh{font-weight:600;background:#fff}
+  .ed-two{display:flex;gap:16px}
+  .ed-two .ed-field{flex:1;min-width:0}
+  .nb-tools{display:flex;gap:3px;flex:0 0 auto;padding-top:3px}
+  .nb-tools .btn{font-size:10px;padding:1px 6px;line-height:1.7}
+  .nb-line{display:flex;align-items:center;gap:6px;padding:2px 0}
+  .nb-line .ed-in{flex:1;min-width:0;padding:5px 7px;font-size:12.5px}
+  .nb-two{display:flex;gap:14px}
+  .nb-two .ed-field{flex:1;min-width:0}
+  .nb-warn{font-size:12px;color:var(--warn);margin:4px 0}
+
 </style>
 </head>
 <body>
@@ -218,7 +255,7 @@
     <div class="ed-head">
       <span class="t" id="edTitle">编辑</span>
       <!-- vadmin 版本戳：每次前端补丁必须同步改这里（用户截图带它 = 一眼分清旧缓存/新 bug） -->
-      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-022</span>
+      <span class="mono" id="edVer" style="font-size:10px;color:var(--muted)"></span>
       <button class="btn ghost sm" id="edClose">关闭</button>
       <button class="btn gold sm" id="edSave">保存到草稿</button>
     </div>
@@ -229,6 +266,9 @@
 </div>
 
 <script>
+/* 后台界面版本 —— **唯一真源**：弹窗头 / 侧栏底部 / 总览都读它。
+   每次改前端必须只改这一行（以前散落硬编码，改一处忘一处）。 */
+const ADMIN_VER = 'vadmin-023';
 /* ══════════════════════════════════════════════════════════════
    阶段状态（2026-09-20）：
    · ✅ 已接 Supabase Auth 真实登录 + members 成员校验（P1 第 1 步）
@@ -495,7 +535,8 @@ function renderNav(active){
   nav.innerHTML = html;
   foot.innerHTML =
     `<button class="rail-item" data-go="settings"${active === 'settings' ? ' aria-current="page"' : ''}>设置与成员</button>` +
-    `<button class="rail-item dim" id="logout2">退出登录</button>`;
+    `<button class="rail-item dim" id="logout2">退出登录</button>` +
+    `<div class="rail-ver" title="后台界面版本 —— 与站点内容版本串（如 20261103b）是两件事">后台界面 <span class="mono">${ADMIN_VER}</span></div>`;
   nav.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   foot.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   document.getElementById('logout2').onclick = logout;
@@ -604,7 +645,9 @@ const VIEWS = {
         <div class="panel-b stack">
           <div><span class="mono" style="color:var(--ok)">${STORE.version}</span>
             <div class="mono dim" style="font-size:11px">build/version.txt · ${STORE.loadedAt ? new Date(STORE.loadedAt).toLocaleString('zh-CN') : '-'}</div>
-            <div style="font-size:13px">仓库里的内容快照</div></div>
+            <div style="font-size:13px">仓库里的内容快照</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px">后台界面版本
+              <span class="mono" style="color:var(--ink)">${ADMIN_VER}</span> —— 与上面的站点版本串是两件事</div></div>
           ${STORE.inquiriesError
             ? '<div class="notice" style="margin:0"><b>询盘读不到</b><span class="mono" style="font-size:12px">' + esc(STORE.inquiriesError) + '</span></div>'
             : '<div style="font-size:13px">询盘链路正常 · 最近 ' + qs.length + ' 条</div>'}
@@ -1192,7 +1235,9 @@ const ED_SEC_NOTE = {
   pageHead:'页面顶部的大标题与导语。',
   crumb:'面包屑（页面顶部的小路径）。',
   cardImage:'首页分类卡上的图。文件名必须与仓库 assets/img/ 下的图一致。',
-  blocks:'正文按块排：h2 小标题 / p 段落 / ul 列表 / table 表格 / notice 提示。块可增删、可调序。',
+  blocks:'一个块一个框，点标题行可收起。顶部按钮加新块，块内 ↑↓ 调序、复制、删。'
+    + '「类型」是不能直接改的 —— 不同类型的数据结构不同（段落是一段文字、表格是行列），'
+    + '要换类型就加一个新块把内容搬过去、再删掉旧的。',
   bullets:'分类页顶部列出的卖点，一行一条。'
 };
 const ED_SCHEMA = {
@@ -1688,6 +1733,146 @@ function edCategoryHTML(){
             edNodeHTML(base.concat('bullets'), c.bullets || [], '要点（一行一条）', null, 'bullets'))
     + edSec('④ 只读 · 结构键', '改 slug 会牵动分类页链接，需要改请找管理员。', edRoRow('链接标识 slug', c.slug));
 }
+/* ── 文章正文块：平铺渲染（vadmin-023）──────────────────────────────
+   通用递归渲染会给每一层对象各画一个框：块 → 对象 → v → rows → 行 → 单元格，
+   一篇 24 块的文章能叠出几十层框（运营原话「一块叠一块，看不懂」）。
+   这里按 block 类型直接排：**一个块 = 一个框，框内不再有任何边框**；
+   表格 = 表头一行 + 每行一条横带，单元格只给输入框、不再标「第 N 格」。
+   数据路径仍是标准的 [.., 'blocks', i, ...]，保存逻辑一行没动。 */
+const NB_TYPES = { h2: '标题', p: '段落', ul: '列表', ol: '编号列表', table: '表格', notice: '提示框' };
+
+/* 新块的初始形状必须与 build.py 的渲染前提一致，否则插入即构建失败 */
+function nbBlank(t){
+  if (t === 'table') return { t: 'table', v: { head: ['', ''], rows: [['', ''], ['', '']] } };
+  if (t === 'notice') return { t: 'notice', tone: 'safe', b: '', v: '' };
+  if (t === 'ul' || t === 'ol') return { t: t, v: [''] };
+  return { t: t, v: '' };
+}
+/* 标题行右侧的一行摘要：一眼看出这块写的是什么（长文导航用） */
+function nbPrev(b){
+  const v = b.v;
+  let s = '';
+  if (typeof v === 'string') s = v;
+  else if (Array.isArray(v)) s = v.join(' · ');
+  else if (v && Array.isArray(v.rows)) s = (v.head || []).filter(Boolean).join(' | ') + ' · ' + v.rows.length + ' 行';
+  s = String(s).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  return s.length > 56 ? s.slice(0, 56) + '…' : s;
+}
+/* 按内容长度算行高：表格单元格与列表条目常有整句，单行 input 会把它截掉半句 */
+function nbAutoRows(v, perLine, max){
+  const t = String(v == null ? '' : v);
+  let n = 0;
+  t.split('\n').forEach(function (l){ n += Math.max(1, Math.ceil(l.length / perLine)) });
+  return Math.min(max || 5, Math.max(1, n));
+}
+function nbOps(listAttr, i){
+  return '<span class="ed-ops">'
+    + '<button class="btn ghost" data-edop="up" data-edlist="' + listAttr + '" data-edi="' + i + '" title="上移">↑</button>'
+    + '<button class="btn ghost" data-edop="down" data-edlist="' + listAttr + '" data-edi="' + i + '" title="下移">↓</button>'
+    + '<button class="btn ghost" data-edop="dup" data-edlist="' + listAttr + '" data-edi="' + i + '" title="复制整块">复制</button>'
+    + '<button class="btn ghost risk" data-edop="del" data-edlist="' + listAttr + '" data-edi="' + i + '">删</button></span>';
+}
+function nbLineOps(listAttr, j, dup){
+  return '<span class="nb-tools">'
+    + '<button class="btn ghost" data-edop="up" data-edlist="' + listAttr + '" data-edi="' + j + '">↑</button>'
+    + '<button class="btn ghost" data-edop="down" data-edlist="' + listAttr + '" data-edi="' + j + '">↓</button>'
+    + (dup ? '<button class="btn ghost" data-edop="dup" data-edlist="' + listAttr + '" data-edi="' + j + '">复制</button>' : '')
+    + '<button class="btn ghost risk" data-edop="del" data-edlist="' + listAttr + '" data-edi="' + j + '">删</button>'
+    + '</span>';
+}
+function edBlocksHTML(bp, blocks){
+  const bpAttr = escAttr(JSON.stringify(bp));
+  const addBar = '<div class="nb-add" data-nbpath="' + bpAttr + '"><span class="nb-addl">新块</span>'
+    + Object.keys(NB_TYPES).map(t =>
+        '<button class="btn ghost sm" data-nbadd="' + t + '">＋ ' + NB_TYPES[t] + '</button>').join('')
+    + '<span class="nb-spacer"></span>'
+    + '<button class="btn ghost sm" data-nbfoldall="1" title="只留标题行，当目录看">全部收起</button>'
+    + '<button class="btn ghost sm" data-nbfoldall="0">全部展开</button>'
+    + '</div>';
+
+  const html = (blocks || []).map(function (b, i){
+    const vp = bp.concat(i, 'v');
+    const pAttr = function (p){ return escAttr(JSON.stringify(p)); };
+    let body = '';
+
+    if (b.t === 'h2' || b.t === 'p'){
+      const v = String(b.v == null ? '' : b.v);
+      const rows = Math.min(14, Math.max(2, Math.ceil(v.length / 88) + 1));
+      body = '<textarea class="ed-in nb-text" rows="' + rows + '" data-ed="' + pAttr(vp) + '"'
+        + ' placeholder="' + (b.t === 'h2' ? '小节标题（不带编号也可）' : '段落文字，可含 &lt;a href&gt; 链接') + '">'
+        + esc(v) + '</textarea>';
+
+    } else if (b.t === 'ul' || b.t === 'ol'){
+      const arr = Array.isArray(b.v) ? b.v : [];
+      const lp = pAttr(vp);
+      body = arr.map(function (line, j){
+        return '<div class="nb-line"><span class="nb-rn">' + (j + 1) + '</span>'
+          + '<textarea class="ed-in nb-cell" rows="' + nbAutoRows(line, 72, 4) + '"'
+          + ' data-ed="' + pAttr(vp.concat(j)) + '">' + esc(line) + '</textarea>'
+          + nbLineOps(lp, j, false) + '</div>';
+      }).join('')
+      + '<div class="nb-line"><span class="nb-rn"></span>'
+      + '<button class="btn ghost sm" data-edop="add" data-edlist="' + lp + '">＋ 加一条</button></div>';
+
+    } else if (b.t === 'table'){
+      const v = (b.v && typeof b.v === 'object') ? b.v : {};
+      const hs = Array.isArray(v.head) ? v.head : [];
+      const rs = Array.isArray(v.rows) ? v.rows : [];
+      const rowsAttr = pAttr(vp.concat('rows'));
+      const colTools = '<span class="nb-tools">'
+        + '<button class="btn ghost" data-nbcol="add" data-nbpath="' + bpAttr + '" data-nbi="' + i + '" title="在末尾加一列">＋列</button>'
+        + '<button class="btn ghost risk" data-nbcol="del" data-nbpath="' + bpAttr + '" data-nbi="' + i + '" title="删掉最后一列">−列</button>'
+        + '</span>';
+      const headRow = '<div class="nb-row nb-head"><span class="nb-rn">表头</span><div class="nb-cells">'
+        + hs.map(function (h, j){
+            return '<textarea class="ed-in nb-cell nb-cellh" rows="1" data-ed="' + pAttr(vp.concat('head', j))
+              + '" placeholder="列 ' + (j + 1) + '">' + esc(h) + '</textarea>';
+          }).join('')
+        + '</div>' + colTools + '</div>';
+      const bodyRows = rs.map(function (r, j){
+        const cells = Array.isArray(r) ? r : [];
+        return '<div class="nb-row"><span class="nb-rn">' + (j + 1) + '</span><div class="nb-cells">'
+          + cells.map(function (c, k){
+              return '<textarea class="ed-in nb-cell" rows="' + nbAutoRows(c, 26, 5) + '"'
+                + ' data-ed="' + pAttr(vp.concat('rows', j, k)) + '">' + esc(c) + '</textarea>';
+            }).join('')
+          + '</div>' + nbLineOps(rowsAttr, j, false) + '</div>';
+      }).join('');
+      body = headRow + bodyRows
+        + '<div class="nb-line"><span class="nb-rn"></span>'
+        + '<button class="btn ghost sm" data-nbrow="add" data-nbpath="' + bpAttr + '" data-nbi="' + i + '">＋ 加一行</button></div>';
+
+    } else if (b.t === 'notice'){
+      const tone = b.tone || 'safe';
+      body = '<div class="nb-two">'
+        + '<label class="ed-field"><span class="ed-k">样式</span>'
+        + '<select class="ed-in" data-ed="' + pAttr(vp.concat('tone')) + '">'
+        + [['safe', 'safe（米色 · 提示）'], ['gold', 'gold（金色 · 强调）']].map(function (o){
+            return '<option value="' + o[0] + '"' + (tone === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('')
+        + '</select></label>'
+        + '<label class="ed-field"><span class="ed-k">小标题（加粗那半句）</span>'
+        + '<input class="ed-in" data-ed="' + pAttr(vp.concat('b')) + '" value="' + escAttr(b.b || '') + '"></label></div>'
+        + '<label class="ed-field"><span class="ed-k">内容</span>'
+        + '<textarea class="ed-in nb-text" rows="3" data-ed="' + pAttr(vp) + '">' + esc(b.v || '') + '</textarea></label>';
+
+    } else {
+      body = '<div class="nb-warn">未识别的块类型 <b>' + esc(b.t) + '</b> —— 构建会直接报错，建议删掉重建。</div>'
+        + edNodeHTML(vp, b.v, '内容');
+    }
+
+    return '<div class="nb"><div class="nb-h" data-nbfold="1" title="点这一行收起 / 展开">'
+      + '<span class="nb-n">块 ' + (i + 1) + '</span>'
+      + '<span class="nb-t">' + esc(NB_TYPES[b.t] || b.t) + '</span>'
+      + '<span class="nb-pv">' + esc(nbPrev(b)) + '</span>'
+      + '<span class="nb-tog">−</span>'
+      + nbOps(bpAttr, i) + '</div>'
+      + '<div class="nb-b">' + body + '</div></div>';
+  }).join('');
+
+  return '<div class="nb-list">' + addBar
+    + (html || '<div class="ed-ro">（还没有正文块 —— 点上面的按钮加一个）</div>') + '</div>';
+}
 /* 文章分区表单：① 基本信息 ② 只读（slug / 编号 / 状态）③ 配图 ④ 正文块 */
 function edNoteHTML(){
   const S = ED_SCHEMA['build/data/insights.json'];
@@ -1698,7 +1883,9 @@ function edNoteHTML(){
     + edArea(base.concat('lede'), n.lede, 4) + '</label>'
     + '<label class="ed-field"><span class="ed-k">' + esc(L('alt')) + edKeyTag(L('alt'), 'alt') + '</span>'
     + edArea(base.concat('alt'), n.alt, 2) + '</label>'
-    + ['date','readMins'].map(k => edFieldRow(base.concat(k), L(k), k, n[k])).join('');
+    + '<div class="ed-two">'
+    + ['date','readMins'].map(k => edFieldRow(base.concat(k), L(k), k, n[k])).join('')
+    + '</div>';
   const ro = ['slug','ix','status'].map(k =>
     edRoRow((S.ro && S.ro[k]) || ED_LABELS[k] || k, n[k])).join('');
   const img = n.image ? imgSrc(n.image, n.image) : '';
@@ -1710,8 +1897,8 @@ function edNoteHTML(){
   return edSec('① 基本信息', '', basics)
     + edSec('② 只读 · 链接与状态', 'slug 决定文章链接；status 为 published 才出现在列表页。', ro)
     + edSec('③ 配图', '', imgBody)
-    + edSec('④ 正文块', ED_SEC_NOTE.blocks || '',
-            edNodeHTML(base.concat('blocks'), n.blocks || [], '正文块', null, 'blocks'));
+    + edSec('④ 正文块 · ' + (n.blocks || []).length + ' 块', ED_SEC_NOTE.blocks || '',
+            edBlocksHTML(base.concat('blocks'), n.blocks || []));
 }
 function edKind(){
   if (!ED) return '';
@@ -1879,11 +2066,14 @@ function edRender(){
   if (!ED) return;
   document.getElementById('edTitle').textContent = ED.label + '　·　' + ED.path;
   const k = edKind();
-  document.getElementById('edBody').innerHTML =
+  const _body = document.getElementById('edBody');
+  const _keep = _body ? _body.scrollTop : 0;   /* 加块/调序后重绘会把滚动拉回顶部，这里保住位置 */
+  _body.innerHTML =
       k === 'product'  ? edProductHTML()
     : k === 'category' ? edCategoryHTML()
     : k === 'note'     ? edNoteHTML()
     :                    edGenericHTML();
+  _body.scrollTop = _keep;
   document.getElementById('edWrap').hidden = false;
 }
 function closeEd(){ ED = null; document.getElementById('edWrap').hidden = true }
@@ -2010,6 +2200,62 @@ document.addEventListener('click', e => {
   if (!ED) return;
   const heroBtn = e.target.closest('[data-hero]');
   if (heroBtn){ edSet(ED.doc, ED.sub.concat(['images','hero']), heroBtn.dataset.hero); edRender(); return }
+  /* ── 正文块操作（vadmin-023）：加块 / 加行 / 加删列 / 折叠 ── */
+  const nbAdd = e.target.closest('[data-nbadd]');
+  if (nbAdd){
+    const holder = nbAdd.closest('[data-nbpath]');
+    if (holder){
+      const list = edGet(ED.doc, JSON.parse(holder.dataset.nbpath));
+      list.push(nbBlank(nbAdd.dataset.nbadd));
+      edRender();
+      const all = document.querySelectorAll('#edBody .nb');
+      if (all.length) all[all.length - 1].scrollIntoView({ block: 'center' });
+      return;
+    }
+  }
+  const nbRow = e.target.closest('[data-nbrow]');
+  if (nbRow){
+    const list = edGet(ED.doc, JSON.parse(nbRow.dataset.nbpath));
+    const blk = list[parseInt(nbRow.dataset.nbi, 10)] || {};
+    const tb = blk.v && typeof blk.v === 'object' ? blk.v : {};
+    tb.head = tb.head || []; tb.rows = tb.rows || [];
+    tb.rows.push(new Array(tb.head.length).fill(''));
+    edRender(); return;
+  }
+  const nbCol = e.target.closest('[data-nbcol]');
+  if (nbCol){
+    const list = edGet(ED.doc, JSON.parse(nbCol.dataset.nbpath));
+    const blk = list[parseInt(nbCol.dataset.nbi, 10)] || {};
+    const tb = blk.v && typeof blk.v === 'object' ? blk.v : {};
+    tb.head = tb.head || []; tb.rows = tb.rows || [];
+    if (nbCol.dataset.nbcol === 'add'){
+      tb.head.push('');
+      tb.rows.forEach(function (r){ r.push('') });
+    } else {
+      if (tb.head.length <= 1){ alert('表格至少要保留一列。'); return }
+      tb.head.pop();
+      tb.rows.forEach(function (r){ r.pop() });
+    }
+    edRender(); return;
+  }
+  const nbAll = e.target.closest('[data-nbfoldall]');
+  if (nbAll){
+    const fold = nbAll.dataset.nbfoldall === '1';
+    document.querySelectorAll('#edBody .nb').forEach(function (x){
+      x.classList.toggle('folded', fold);
+      const t = x.querySelector('.nb-tog');
+      if (t) t.textContent = fold ? '＋' : '−';
+    });
+    return;
+  }
+  const nbFold = e.target.closest('[data-nbfold]');
+  if (nbFold && !e.target.closest('.ed-ops') && !e.target.closest('.btn')){
+    const box = nbFold.parentElement;
+    const folded = box.classList.toggle('folded');
+    const tog = nbFold.querySelector('.nb-tog');
+    if (tog) tog.textContent = folded ? '＋' : '−';
+    return;
+  }
   const opBtn = e.target.closest('[data-edop]');
   if (!opBtn) return;
   const op = opBtn.dataset.edop, i = parseInt(opBtn.dataset.edi, 10);
@@ -2029,6 +2275,8 @@ document.getElementById('edSave').onclick = saveEd;
 
 /* ── 启动：有会话就恢复（过期先续），没有就停在登录页 ── */
 (async function boot(){
+  const verEl = document.getElementById('edVer');
+  if (verEl) verEl.textContent = ADMIN_VER;
   const s = sbSession();
   if (!s || !s.access_token){ showLogin(''); return }
   /* 过期自愈（换令牌 + 重放）已经收敛到 sbReq 内部，这里只负责"最终失败就回登录页" */
