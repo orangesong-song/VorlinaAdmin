@@ -218,7 +218,7 @@
     <div class="ed-head">
       <span class="t" id="edTitle">编辑</span>
       <!-- vadmin 版本戳：每次前端补丁必须同步改这里（用户截图带它 = 一眼分清旧缓存/新 bug） -->
-      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-021</span>
+      <span class="mono" style="font-size:10px;color:var(--muted)">vadmin-022</span>
       <button class="btn ghost sm" id="edClose">关闭</button>
       <button class="btn gold sm" id="edSave">保存到草稿</button>
     </div>
@@ -489,7 +489,8 @@ function renderNav(active){
       html += `<div class="rail-group">${n.group}</div>`;
       continue;
     }
-    html += `<button class="rail-item" data-go="${n.id}"${n.id===active?' aria-current="page"':''}>${n.label}${n.badge?`<span class="badge">${n.badge}</span>`:''}</button>`;
+    const _b = navBadge(n.id, n.badge);
+    html += `<button class="rail-item" data-go="${n.id}"${n.id===active?' aria-current="page"':''}>${n.label}${_b?`<span class="badge">${_b}</span>`:''}</button>`;
   }
   nav.innerHTML = html;
   foot.innerHTML =
@@ -498,6 +499,21 @@ function renderNav(active){
   nav.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   foot.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   document.getElementById('logout2').onclick = logout;
+  const _nb = document.getElementById('noteNew');
+  if (_nb) _nb.onclick = newNote;
+}
+
+/* 导航角标：有数据就按真实数量显示，读不到就不显示 —— 宁可空着，也不要一个假数字。
+   （2026-11-03：原先 NAV 里硬编码 badge:'5'，实际已经 10 篇，一眼就是错的。） */
+function navBadge(id, fallback){
+  if (id === 'notes'){
+    const ins = insightsDoc();
+    return (ins && ins.notes) ? ins.notes.length : null;
+  }
+  if (id === 'changes'){
+    return (STORE.changes && STORE.changes.length) ? STORE.changes.length : null;
+  }
+  return (fallback == null || fallback === '') ? null : fallback;
 }
 
 /* ── 小工具 ── */
@@ -682,6 +698,9 @@ const VIEWS = {
       <div class="side">${notes.length} 篇<br>${srcTag()}</div>
     </div>
     <div class="panel sec">
+      <div class="panel-h"><span class="ttl">全部文章</span><span class="grow"></span>
+        <button class="btn ghost sm" id="noteNew">＋ 新建文章</button>
+      </div>
       <table class="tbl">${head(['编号','标题','状态','日期','篇幅','编辑'],[4])}
         <tbody>${rows || '<tr><td colspan="6" class="empty">读不到文章数据</td></tr>'}</tbody>
       </table>
@@ -1782,16 +1801,80 @@ function edNodeHTML(path, v, keyLabel, sch, origKey, bare){
   }
   return '<label class="ed-field"><span class="ed-k">' + esc(keyLabel) + '</span>' + edLeafHTML(path, v) + '</label>';
 }
-function openEd(path, sub, label){
+function openEd(path, sub, label, docOverride){
   if (!STORE.files[path]){ alert('这份内容还没读到，无法编辑。请先回总览确认真源读取正常。'); return }
   const s0 = edSchemaFor(path, sub || []);
   if (s0 && s0.locked){ alert(s0.hideLabel || '该文件为系统识别用，不在页面上编辑。'); return }
+  /* docOverride：新建时用（文档还没落盘，只存在于内存，保存时整份写回） */
   ED = { path, sub: sub || [], label: label || path,
-         doc: JSON.parse(JSON.stringify(STORE.files[path])),
+         doc: JSON.parse(JSON.stringify(docOverride || STORE.files[path])),
+         isNew: !!docOverride,
          message: '后台编辑 · ' + (label || path) };
   document.getElementById('edMsg').textContent = '';
   edRender();
 }
+/* ── 新建文章 ────────────────────────────────────────────────────
+   只问一个标题，其余全部自动：slug 从标题生成并查重、ix 递增、状态 draft。
+   draft 不会进站内列表、也不生成页面（构建器已按此过滤），写完把状态改成
+   published 才会出现在 /resources/ 上。 */
+function slugifyTitle(t){
+  return String(t || '').toLowerCase()
+    .replace(/[()\/]/g, ' ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+function uniqueSlug(list, base){
+  const used = new Set((list || []).map(n => n.slug));
+  let s = base, i = 2;
+  while (used.has(s)){ s = base + '-' + i; i++; }
+  return s;
+}
+function nextNoteIx(list){
+  let max = 0;
+  (list || []).forEach(n => {
+    const m = /(\d+)/.exec(String(n.ix || ''));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return 'Note ' + String(max + 1).padStart(2, '0');
+}
+function todayISO(){
+  const d = new Date();
+  const p = x => String(x).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function newNote(){
+  const ins = insightsDoc();
+  if (!ins){ alert('文章数据还没读到，请刷新页面后重试。'); return; }
+  const title = (window.prompt('新文章标题（英文，之后也能改）：', '') || '').trim();
+  if (!title) return;
+  const doc = JSON.parse(JSON.stringify(ins));
+  doc.notes = doc.notes || [];
+  const slug = uniqueSlug(doc.notes, slugifyTitle(title) || 'note');
+  const ix = nextNoteIx(doc.notes);
+  doc.notes.push({
+    status: 'draft',
+    slug: slug,
+    ix: ix,
+    title: title,
+    card: '',
+    image: '',
+    alt: '',
+    cardAlt: '',
+    cardW: 1200,
+    cardH: 750,
+    date: todayISO(),
+    readMins: 5,
+    lede: '',
+    blocks: [
+      { t: 'h2', v: '01 · ' },
+      { t: 'p', v: '' }
+    ]
+  });
+  openEd('build/data/insights.json', ['notes', doc.notes.length - 1],
+         '新文章 · ' + title, doc);
+}
+
 function edRender(){
   if (!ED) return;
   document.getElementById('edTitle').textContent = ED.label + '　·　' + ED.path;
@@ -1825,7 +1908,11 @@ async function saveEd(){
         extra = '（⚠ 图库文件未加载成功，新图未登记，请刷新页面重试）';
       }
     }
-    document.getElementById('edMsg').innerHTML = '<b style="color:var(--ok)">已保存到草稿（cms 分支）。</b>' + extra + '还没上线 —— 去「变更清单」过目后点发布。';
+    const isNewNote = ED.isNew && ED.path === 'build/data/insights.json';
+    document.getElementById('edMsg').innerHTML = '<b style="color:var(--ok)">已保存到草稿（cms 分支）。</b>' + extra
+      + (isNewNote
+          ? '新文章状态是 <b>draft</b> —— 不会出现在站内列表，也不会生成页面。写完正文后，把「状态」改成 <b>published</b> 再保存一次，它才会进 /resources/。'
+          : '还没上线 —— 去「变更清单」过目后点发布。');
   } catch(e){
     document.getElementById('edMsg').innerHTML = '<b style="color:var(--warn)">保存失败：</b>' + esc(e.message || String(e));
   } finally { btn.disabled = false; btn.textContent = old }

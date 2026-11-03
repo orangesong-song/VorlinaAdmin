@@ -19,6 +19,9 @@ const path = require('path');
 /* 版本串现算：官网每次发版都会升，写死在测试里只会制造假红（2026-09-23 实测如此） */
 const SITE = path.resolve(__dirname, '..', '..', 'vorlina-new');
 const VERSION = fs.readFileSync(path.join(SITE, 'build', 'version.txt'), 'utf8').trim();
+/* 文章篇数按真源现算 —— 写死会在每次加文章后变红（2026-11-03：写死 5，实际已 10，
+   T7 报红。守卫的期望值必须跟着数据走，否则它测的是"我记得多少"，不是"站里有多少"。） */
+const INS = JSON.parse(fs.readFileSync(path.join(SITE, 'build/data/insights.json'), 'utf8'));
 
 const SB = 'https://jjmaularjtmhptbfnovd.supabase.co';
 const ORIGIN = 'http://127.0.0.1:8778';
@@ -32,7 +35,7 @@ const EXPECT = {
   /* 后台会读的内容文件数 = 6 份 + 9 个栏目页 = 15。
      ⚠️ 别写成 16 —— 那是产品款数，不是文件数。两个数混用是本站明令禁止的（D99 类错误）。 */
   filesTotal: 15,
-  products: 16, categories: 6, notes: 5, pages: 9, certs: 16, faq: 10,
+  products: 16, categories: 6, notes: INS.notes.length, pages: 9, certs: 16, faq: 10,
   sku: 'VOR-DZ-TS01',
   catShort: 'Laser & Light',
   noteTitle: 'What we check before your order leaves the factory',
@@ -161,7 +164,7 @@ function mockSb(page, S) {
   /* ── T7/T8 文章与栏目页 ── */
   section('文章 / 栏目页');
   const nt = await go('notes');
-  check('T7 文章 5 行', nt.rows === EXPECT.notes, '实际 ' + nt.rows);
+  check('T7 文章 ' + EXPECT.notes + ' 行', nt.rows === EXPECT.notes, '实际 ' + nt.rows);
   check('T8 含真实文章标题', nt.view.includes(EXPECT.noteTitle));
   const pg = await go('pages');
   check('T9 栏目页 9 行', pg.rows === EXPECT.pages, '实际 ' + pg.rows);
